@@ -1,0 +1,41 @@
+{
+  "name": "intelliwright",
+  "version": "0.0.0",
+  "description": "End-to-end testing for web apps, with page objects and Jev-powered checks, actions and failure triage.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "intelliwright": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "skills"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "typecheck": "tsc --noEmit",
+    "pretest": "npm run build",
+    "test": "vitest run --project unit --project integration",
+    "test:live": "vitest run --project live",
+    "spam": "node --env-file=.env.local test-spam.mjs"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/core": "^0.18.5",
+    "@types/node": "^22.20.5",
+    "@typesafe-ai/sdk": "^0.6.0",
+    "publint": "^0.3.25",
+    "tsdown": "^0.23.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./ai-sdk": "./dist/ai-sdk.js",
+    "./testing": "./dist/testing.js",
+    "./package.json": "./package.json"
+  }
+}
