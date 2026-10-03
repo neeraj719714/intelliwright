@@ -24,3 +24,21 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: npm test
+
+  live:
+    name: Live Jev smoke tests
+    runs-on: ubuntu-latest
+    env:
+      TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+      AI_GATEWAY_API_KEY: ${{ secrets.AI_GATEWAY_API_KEY }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+        if: env.TYPESAFE_API_KEY != '' || env.AI_GATEWAY_API_KEY != '' || env.OPENROUTER_API_KEY != ''
+      - uses: actions/setup-node@v5
+        if: env.TYPESAFE_API_KEY != '' || env.AI_GATEWAY_API_KEY != '' || env.OPENROUTER_API_KEY != ''
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci && npm run test:live
+        if: env.TYPESAFE_API_KEY != '' || env.AI_GATEWAY_API_KEY != '' || env.OPENROUTER_API_KEY != ''

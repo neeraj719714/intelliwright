@@ -1,0 +1,48 @@
+{
+  "result": {
+    "model": "jev-1.13.0",
+    "answers": {
+      "isSpam": {
+        "type": "noul",
+        "noul": 0.99
+      },
+      "category": {
+        "type": "choice",
+        "choice": "phishing",
+        "confidence": 1,
+        "probabilities": {
+          "personal": 0,
+          "transactional": 0,
+          "phishing": 1,
+          "marketing": 0
+        }
+      },
+      "riskScore": {
+        "type": "score",
+        "score": 3.9,
+        "confidence": 0.92,
+        "legend": {
+          "0": "Safe",
+          "1": "Low risk",
+          "2": "Medium risk",
+          "3": "High risk",
+          "4": "Dangerous"
+        },
+        "probabilities": {
+          "0": 0,
+          "1": 0,
+          "2": 0,
+          "3": 0.09,
+          "4": 0.91
+        }
+      }
+    },
+    "usage": {
+      "input_tokens": 546,
+      "output_tokens": 85
+    }
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}

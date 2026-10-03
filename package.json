@@ -17,16 +17,14 @@
   "scripts": {
     "build": "tsdown",
     "dev": "tsdown --watch",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p test",
     "pretest": "npm run build",
     "test": "vitest run --project unit --project integration",
-    "test:live": "vitest run --project live",
-    "spam": "node --env-file=.env.local test-spam.mjs"
+    "test:live": "vitest run --project live"
   },
   "devDependencies": {
     "@arethetypeswrong/core": "^0.18.5",
     "@types/node": "^22.20.5",
-    "@typesafe-ai/sdk": "^0.6.0",
     "publint": "^0.3.25",
     "tsdown": "^0.23.0",
     "typescript": "^7.0.2",

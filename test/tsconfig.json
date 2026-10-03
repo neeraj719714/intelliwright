@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "isolatedDeclarations": false,
+    "declaration": false
+  },
+  "include": ["."],
+  "exclude": ["fixtures"]
+}
