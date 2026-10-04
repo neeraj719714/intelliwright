@@ -27,8 +27,10 @@ beforeAll(async () => {
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));
 
 describe("the packed tarball", () => {
-  test("holds only dist/, skills/, the license and package.json", () => {
-    const outside = files.filter((file) => !/^(dist|skills)\//.test(file) && !["LICENSE", "package.json"].includes(file));
+  test("holds only dist/, skills/, the readme, the license and package.json", () => {
+    const outside = files.filter(
+      (file) => !/^(dist|skills)\//.test(file) && !["LICENSE", "README.md", "package.json"].includes(file),
+    );
     expect(outside).toEqual([]);
     expect(files).toContain("skills/intelliwright/SKILL.md");
     expect(files.some((file) => file.endsWith(".map"))).toBe(false);
