@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, rmSync } from "node:fs";
 import path from "node:path";
 import { loadConfig } from "../config/load-config.js";
-import type { ConfigOverrides, ResolvedConfig } from "../config/types.js";
+import type { ConfigOverrides, ResolvedConfig, UseOptions } from "../config/types.js";
 import { plural, testLabel } from "../reporters/format.js";
 import { HtmlReporter, type HtmlReporterOptions } from "../reporters/html/index.js";
 import { JsonReporter, type JsonReporterOptions } from "../reporters/json.js";
@@ -9,9 +9,10 @@ import { JunitReporter, type JunitReporterOptions } from "../reporters/junit.js"
 import { TerminalReporter } from "../reporters/terminal.js";
 import type { AiRunSummary, Counts, Outcome, Reporter, RunSummary, TestCase } from "../reporters/types.js";
 import { addUsage, emptyUsage } from "../ai/usage.js";
+import { checkRole, discoverSetupFiles } from "./auth.js";
 import { collectFile } from "./collect-file.js";
 import { LAST_RUN_FILE, selectTests, writeLastRun, type SelectionOptions } from "./select.js";
-import { ancestors } from "./tree.js";
+import { ancestors, type TestNode } from "./tree.js";
 import { discoverTestFiles } from "./discover.js";
 import { importModule } from "./loader.js";
 import { serializeError } from "./location.js";
@@ -35,14 +36,21 @@ export interface RunOptions {
 export async function runTests(options: RunOptions): Promise<number> {
   process.setSourceMapsEnabled(true);
   const config = await loadConfig({ cwd: options.cwd, configFile: options.configFile, overrides: options.overrides });
-  const { tests, errors } = await collectTests(config);
+  const { tests, setups, errors } = await collectTests(config);
   const { tests: selected, note } = selectTests(tests, options.selection ?? {}, {
     cwd: options.cwd,
     suites: config.suites,
     outputDir: config.outputDir,
   });
+  const roles = [...new Set(selected.flatMap((test) => (!test.skipped && test.auth ? [test.auth] : [])))].sort();
+  const missing = roles.filter((role) => !setups.some((setup) => setup.authSetup === role));
+  if (missing.length > 0) {
+    errors.push({
+      message: `No sign-in for ${missing.map((role) => `"${role}"`).join(", ")}. Add test.auth("${missing[0]}", async ({ page }) => { ... }) to a setup file such as e2e/auth.setup.ts.`,
+    });
+  }
 
-  if (options.list) return printList(selected, errors, note);
+  if (options.list) return printList(selected, roles, errors, note);
 
   const reporters = createReporters(config);
   if (selected.length === 0) {
@@ -56,10 +64,11 @@ export async function runTests(options: RunOptions): Promise<number> {
     }
     return 1;
   }
-  return execute(config, selected, errors, reporters, options);
+  const signIns = setups.filter((setup) => roles.includes(setup.authSetup!));
+  return execute(config, selected, signIns, errors, reporters, options);
 }
 
-function printList(tests: TestCase[], errors: SerializedError[], note: string | undefined): number {
+function printList(tests: TestCase[], roles: string[], errors: SerializedError[], note: string | undefined): number {
   for (const error of errors) process.stderr.write(`Error: ${error.message}\n`);
   const lines = tests.map((test) => {
     const label = testLabel(test);
@@ -70,41 +79,70 @@ function printList(tests: TestCase[], errors: SerializedError[], note: string | 
   process.stdout.write(
     `Listing tests:\n${lines.join("\n")}${lines.length ? "\n" : ""}Total: ${plural(tests.length, "test")} in ${plural(files, "file")}\n`,
   );
+  if (roles.length > 0) process.stdout.write(`Signs in first as: ${roles.join(", ")}\n`);
   if (note) process.stdout.write(`${note}\n`);
   return errors.length > 0 ? 1 : 0;
 }
 
-export async function collectTests(config: ResolvedConfig): Promise<{ tests: TestCase[]; errors: SerializedError[] }> {
+export interface CollectedTests {
+  tests: TestCase[];
+  /** Sign-ins from `test.auth()` in setup files, one per role. */
+  setups: TestCase[];
+  errors: SerializedError[];
+}
+
+export async function collectTests(config: ResolvedConfig): Promise<CollectedTests> {
   const tests: TestCase[] = [];
+  const setups: TestCase[] = [];
   const errors: SerializedError[] = [];
-  for (const file of await discoverTestFiles(config)) {
+  const load = async (file: string, into: TestCase[]): Promise<void> => {
     try {
       const collected = await collectFile(file, config.rootDir);
-      for (const node of collected.tests) {
-        tests.push({
-          id: node.id,
-          title: node.title,
-          titlePath: node.titlePath,
-          file: node.location.file,
-          relFile: collected.relFile,
-          line: node.location.line,
-          column: node.location.column,
-          describeLines: ancestors(node).flatMap((suite) => (suite.location ? [suite.location.line] : [])),
-          tags: node.tags,
-          skipped: node.skipped,
-          skipReason: node.skipReason,
-          annotations: node.annotations,
-          only: node.only,
-          results: [],
-          outcome: undefined,
-        });
-      }
+      for (const node of collected.tests) into.push(toTestCase(node, collected.relFile, config));
     } catch (error) {
       const serialized = serializeError(error, config.rootDir);
       errors.push({ ...serialized, message: `Couldn't load ${file}:\n${serialized.message}` });
     }
+  };
+  for (const file of await discoverTestFiles(config)) await load(file, tests);
+  for (const file of await discoverSetupFiles(config)) await load(file, setups);
+
+  const byRole = new Map<string, TestCase>();
+  for (const setup of setups) {
+    const first = byRole.get(setup.authSetup!);
+    if (first) {
+      errors.push({
+        message: `There are two sign-ins for "${setup.authSetup}": ${first.relFile}:${first.line} and ${setup.relFile}:${setup.line}. Keep one.`,
+      });
+    } else {
+      byRole.set(setup.authSetup!, setup);
+    }
   }
-  return { tests, errors };
+  return { tests, setups: [...byRole.values()], errors };
+}
+
+function toTestCase(node: TestNode, relFile: string, config: ResolvedConfig): TestCase {
+  const use: UseOptions = Object.assign({}, config.use, ...ancestors(node).flatMap((suite) => suite.use));
+  const auth = node.authSetup || use.auth == null ? undefined : checkRole(use.auth, `use.auth for "${node.title}"`);
+  return {
+    id: node.id,
+    title: node.title,
+    titlePath: node.titlePath,
+    file: node.location.file,
+    relFile,
+    line: node.location.line,
+    column: node.location.column,
+    describeLines: ancestors(node).flatMap((suite) => (suite.location ? [suite.location.line] : [])),
+    tags: node.tags,
+    skipped: node.skipped,
+    skipReason: node.skipReason,
+    annotations: node.annotations,
+    only: node.only,
+    results: [],
+    outcome: undefined,
+    ...(auth ? { auth } : {}),
+    ...(node.authSetup ? { authSetup: node.authSetup } : {}),
+  };
 }
 
 function createReporters(config: ResolvedConfig): Reporter[] {
@@ -143,28 +181,42 @@ function emit(reporters: Reporter[], call: (reporter: Reporter) => void): void {
 
 async function execute(
   config: ResolvedConfig,
-  tests: TestCase[],
+  selected: TestCase[],
+  signIns: TestCase[],
   errors: SerializedError[],
   reporters: Reporter[],
   options: RunOptions,
 ): Promise<number> {
   const startTime = Date.now();
   clearOutputDir(config);
-  const runnable = tests.filter((test) => !test.skipped);
-  const jobs = jobsFor(runnable);
-  const workers = Math.max(1, Math.min(config.workers, jobs.length));
+  const tests = [...signIns, ...selected];
+  const runnable = selected.filter((test) => !test.skipped);
+  const workers = Math.max(1, Math.min(config.workers, Math.max(jobsFor(runnable).length, jobsFor(signIns).length)));
   emit(reporters, (reporter) => reporter.onBegin?.({ config, tests, workers, startTime }));
   for (const error of errors) emit(reporters, (reporter) => reporter.onError?.(error));
 
-  for (const test of tests.filter((t) => t.skipped)) {
-    const result = skippedResult(test);
+  const skip = (test: TestCase, reason?: string): void => {
+    const result = skippedResult(test, reason);
     test.results.push(result);
     test.outcome = "skipped";
     emit(reporters, (reporter) => reporter.onTestBegin?.(test, 0));
     emit(reporters, (reporter) => reporter.onTestEnd?.(test, result, false));
-  }
+  };
+  for (const test of selected.filter((t) => t.skipped)) skip(test);
 
-  const byId = new Map(runnable.map((test) => [test.id, test]));
+  // Tests whose role has no sign-in, or whose sign-in failed, can't start signed in.
+  const blocked = new Set<TestCase>();
+  const block = (roles: Set<string>, reason: (role: string) => string): void => {
+    for (const test of runnable) {
+      if (!test.auth || !roles.has(test.auth) || blocked.has(test)) continue;
+      blocked.add(test);
+      skip(test, reason(test.auth));
+    }
+  };
+  const available = new Set(signIns.map((setup) => setup.authSetup!));
+  block(new Set(runnable.flatMap((test) => (test.auth && !available.has(test.auth) ? [test.auth] : []))), (role) => `No sign-in for "${role}".`);
+
+  const byId = new Map([...signIns, ...runnable].map((test) => [test.id, test]));
   const running = new Map<number, string>();
   const finish = (test: TestCase, result: AttemptResult, willRetry: boolean): void => {
     test.results.push(result);
@@ -237,11 +289,17 @@ async function execute(
   let servers: RunningServers | undefined;
   let teardown: (() => Promise<void>) | undefined;
   try {
-    if (runnable.length > 0) {
+    if (runnable.length > blocked.size) {
       servers = await startWebServers(config.webServer, config.rootDir, options.overrides.baseURL);
       teardown = await runGlobalSetup(config);
       process.once("SIGINT", onInterrupt);
-      await pool.run(jobs);
+      if (signIns.length > 0) {
+        await pool.run(jobsFor(signIns));
+        const failed = signIns.filter((setup) => setup.outcome !== "passed" && setup.outcome !== "flaky");
+        block(new Set(failed.map((setup) => setup.authSetup!)), (role) => `Signing in as "${role}" failed.`);
+      }
+      const ready = runnable.filter((test) => test.outcome === undefined && !blocked.has(test));
+      if (!interrupted && ready.length > 0) await pool.run(jobsFor(ready));
     }
   } catch (error) {
     addError(serializeError(error, config.rootDir));
@@ -274,7 +332,7 @@ async function execute(
   try {
     writeLastRun(config.outputDir, {
       status,
-      failedTests: tests.filter((test) => test.outcome === "failed").map((test) => test.id),
+      failedTests: selected.filter((test) => test.outcome === "failed" || blocked.has(test)).map((test) => test.id),
     });
   } catch (error) {
     process.stderr.write(`Couldn't save the run state: ${(error as Error).message}\n`);
@@ -344,7 +402,7 @@ export function countOutcomes(tests: TestCase[]): Counts {
   return counts;
 }
 
-function skippedResult(test: TestCase): AttemptResult {
+function skippedResult(test: TestCase, reason = test.skipReason): AttemptResult {
   return {
     retry: 0,
     workerIndex: -1,
@@ -353,7 +411,7 @@ function skippedResult(test: TestCase): AttemptResult {
     duration: 0,
     errors: [],
     steps: [],
-    annotations: [...test.annotations, ...(test.skipReason ? [{ type: "skip", description: test.skipReason }] : [])],
+    annotations: [...test.annotations, ...(reason ? [{ type: "skip", description: reason }] : [])],
     attachments: [],
   };
 }

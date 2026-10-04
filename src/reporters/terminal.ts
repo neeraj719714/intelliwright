@@ -48,9 +48,11 @@ export class TerminalReporter implements Reporter {
             ? `${c.yellow("✓")}  ${label} ${duration} ${c.yellow(`flaky, passed on retry ${result.retry}`)}`
             : `${c.green("✓")}  ${label} ${duration}`;
         break;
-      case "skipped":
-        line = `${c.yellow("-")}  ${c.dim(label)}`;
+      case "skipped": {
+        const reason = result.annotations.findLast((annotation) => annotation.type === "skip")?.description;
+        line = `${c.yellow("-")}  ${c.dim(label)}${reason ? c.dim(` (${reason})`) : ""}`;
         break;
+      }
       default: {
         const what = result.status === "timedOut" ? "timed out" : "failed";
         line = `${c.red("✘")}  ${label} ${duration} ${c.red(willRetry ? `${what}, retrying` : what)}`;

@@ -44,6 +44,10 @@ export interface TestCase {
   /** Set once the test's last attempt has ended. */
   outcome: Outcome | undefined;
   triage?: TriageResult;
+  /** The role whose saved sign-in the test starts with. */
+  auth?: string;
+  /** Set on sign-in tests from `test.auth()`: the role whose state they save. */
+  authSetup?: string;
 }
 
 export interface Counts {

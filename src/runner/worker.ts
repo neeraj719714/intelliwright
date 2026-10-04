@@ -1,4 +1,5 @@
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
+import path from "node:path";
 import { chromium, firefox, selectors, webkit, type Browser, type BrowserContext, type Page } from "playwright-core";
 import { LocatorCache } from "../ai/cache.js";
 import { createAi } from "../ai/fixture.js";
@@ -7,6 +8,7 @@ import { AiRuntime } from "../ai/runtime.js";
 import { askJevForTriage, ruleTriage } from "../ai/triage.js";
 import { emptyUsage, subtractUsage } from "../ai/usage.js";
 import { ArtifactRecorder, finishArtifacts } from "./artifacts.js";
+import { authStatePath, checkRole } from "./auth.js";
 import { loadConfig } from "../config/load-config.js";
 import type { ResolvedConfig, UseOptions } from "../config/types.js";
 import { SkipSignal } from "./collect.js";
@@ -438,14 +440,32 @@ export class WorkerRunner {
           provide: (value: BrowserContext) => Promise<void>,
           info: TestInfoImpl,
         ) => {
-          const { actionTimeout, navigationTimeout, ...options } = testUse;
+          const { actionTimeout, navigationTimeout, auth, ...options } = testUse;
+          const role = test.authSetup;
+          if (role) {
+            options.storageState = undefined;
+          } else if (auth != null) {
+            const file = authStatePath(config.rootDir, checkRole(auth, "use.auth"));
+            if (!existsSync(file)) {
+              throw new Error(`There's no saved sign-in for "${auth}". test.auth("${auth}") in a setup file saves it when \`intelliwright test\` starts.`);
+            }
+            options.storageState = file;
+          }
           const context = await browser.newContext({ ...options, baseURL: config.baseURL });
           context.setDefaultTimeout(actionTimeout ?? 0);
           context.setDefaultNavigationTimeout(navigationTimeout ?? 0);
           const recorder = new ArtifactRecorder(context);
           info.recorder = recorder;
-          await context.tracing.start({ screenshots: true, snapshots: true, sources: true, title: info.titlePath.join(" › ") });
+          // Sign-ins aren't traced: a trace would keep the password that was typed.
+          if (!role) {
+            await context.tracing.start({ screenshots: true, snapshots: true, sources: true, title: info.titlePath.join(" › ") });
+          }
           await provide(context);
+          if (role && info.status === "passed") {
+            const file = authStatePath(config.rootDir, role);
+            mkdirSync(path.dirname(file), { recursive: true });
+            await context.storageState({ path: file, indexedDB: true });
+          }
           await finishArtifacts(context, recorder, info);
           await context.close();
         },

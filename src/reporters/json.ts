@@ -40,6 +40,8 @@ export class JsonReporter implements Reporter {
         column: test.column,
         titlePath: test.titlePath,
         tags: test.tags,
+        auth: test.auth,
+        authSetup: test.authSetup,
         outcome: test.outcome ?? null,
         triage: test.triage,
         attempts: test.results.map((result) => ({

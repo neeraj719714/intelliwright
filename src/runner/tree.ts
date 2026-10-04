@@ -47,6 +47,8 @@ export interface TestNode {
   skipped: boolean;
   /** Effective after collection: true when the test or a describe above it uses `.only`. */
   only: boolean;
+  /** Set on sign-in tests from `test.auth()`: the role whose state they save. */
+  authSetup?: string;
 }
 
 export function createSuite(title: string, location: Location | undefined, parent: SuiteNode | undefined): SuiteNode {

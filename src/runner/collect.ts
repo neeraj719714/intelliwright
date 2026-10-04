@@ -1,4 +1,5 @@
 import type { UseOptions } from "../config/types.js";
+import { checkRole, isSetupFile } from "./auth.js";
 import { parameterNames, toLayer, type FixtureLayer } from "./fixtures.js";
 import { callerLocation } from "./location.js";
 import { shared, type Collecting } from "./state.js";
@@ -56,6 +57,12 @@ export interface TestFunction<F> extends TestRegister<F> {
   step<T>(title: string, body: () => T | Promise<T>): Promise<T>;
   /** Browser context options for the tests in this file or describe. */
   use(options: UseOptions): void;
+  /**
+   * Signs in as `role`, in a setup file such as `e2e/auth.setup.ts`. It runs
+   * once per run, before the tests that use `{ auth: role }`, in a fresh
+   * signed-out context whose state is saved when the body passes.
+   */
+  auth(role: string, body: TestBody<F>): void;
   /** Adds fixtures, such as page objects, that tests receive by name. */
   extend<Extra extends object>(fixtures: FixtureDefinitions<Extra, F>): TestFunction<F & Extra>;
   info(): TestInfo;
@@ -104,9 +111,12 @@ function splitArgs<B>(what: string, title: unknown, second: unknown, third: unkn
   return { title, details, body: body as B };
 }
 
-function registerTest(mode: Mode, layers: readonly FixtureLayer[], args: unknown[]): void {
+function registerTest(mode: Mode, layers: readonly FixtureLayer[], args: unknown[], authSetup?: string): void {
   const state = collecting("test()");
   const { title, details, body } = splitArgs<(...a: any[]) => unknown>("test()", args[0], args[1], args[2]);
+  if (authSetup === undefined && isSetupFile(state.file)) {
+    throw new Error(`Setup files only hold sign-ins. Move test("${title}") into a test file, or use test.auth("role", ...).`);
+  }
   const suite = currentSuite(state);
   const node: TestNode = {
     kind: "test",
@@ -124,8 +134,19 @@ function registerTest(mode: Mode, layers: readonly FixtureLayer[], args: unknown
     parent: suite,
     skipped: false,
     only: false,
+    ...(authSetup === undefined ? {} : { authSetup }),
   };
   suite.children.push(node);
+}
+
+function registerAuth(layers: readonly FixtureLayer[], role: unknown, body: unknown): void {
+  const state = collecting("test.auth()");
+  const name = checkRole(role, "test.auth()");
+  if (!isSetupFile(state.file)) {
+    throw new Error(`test.auth("${name}") belongs in a setup file next to your tests, such as e2e/auth.setup.ts.`);
+  }
+  if (typeof body !== "function") throw new Error(`test.auth("${name}") needs a function that signs in.`);
+  registerTest("default", layers, [`sign in as ${name}`, body], name);
 }
 
 function skipOrRegister(mode: "skip" | "fixme", layers: readonly FixtureLayer[], args: unknown[]): void {
@@ -206,6 +227,7 @@ function createTestFunction<F>(layers: readonly FixtureLayer[]): TestFunction<F>
   test.use = (options) => {
     currentSuite(collecting("test.use()")).use.push(options);
   };
+  test.auth = (role, body) => registerAuth(layers, role, body);
   test.extend = <Extra extends object>(fixtures: FixtureDefinitions<Extra, F>) =>
     createTestFunction<F & Extra>([...layers, toLayer(fixtures as Record<string, unknown>)]);
   test.info = () => {

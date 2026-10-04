@@ -25,6 +25,11 @@ export interface UseOptions extends Omit<BrowserContextOptions, "baseURL"> {
   actionTimeout?: number;
   /** Milliseconds for each navigation. Defaults to no limit within the test timeout. */
   navigationTimeout?: number;
+  /**
+   * Starts tests signed in as this role, with the state that `test.auth(role)`
+   * saved earlier in the run. `null` starts them signed out.
+   */
+  auth?: string | null;
 }
 
 export interface AiConfig extends ProviderSettings {

@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Account</title>
+  </head>
+  <body>
+    <h1 id="who"></h1>
+    <p id="theme"></p>
+    <script>
+      const session = document.cookie.match(/(?:^|; )session=([^;]*)/);
+      document.getElementById("who").textContent = session ? `Signed in as ${decodeURIComponent(session[1])}` : "Signed out";
+      document.getElementById("theme").textContent = `Theme: ${localStorage.getItem("theme") ?? "light"}`;
+    </script>
+  </body>
+</html>

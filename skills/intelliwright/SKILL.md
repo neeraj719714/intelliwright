@@ -20,6 +20,7 @@ Read [page-objects.md](page-objects.md) before writing a page object, and
   as routes.
 - Fixtures that hand page objects to tests: `e2e/fixtures.ts`.
 - Tests: `e2e/**/*.e2e.ts`, so other test runners don't pick them up.
+- Sign-ins: `e2e/auth.setup.ts`.
 - Config: `intelliwright.config.ts` at the project root.
 
 ## A complete example
@@ -121,16 +122,44 @@ narrow down, chain from a landmark:
 - Each test creates its own data with unique names, such as a title with
   `Date.now()` in it. Never rely on data another test created.
 - No test may depend on the order tests run in; workers run files in parallel.
-- Don't sign in through the UI in every test. Sign in through the app's API
-  in a fixture, since `page.request` shares cookies with the page:
-  `await page.request.post("/api/sign-in", { data: { email, password } })`.
-  Or load a saved state file with `use: { storageState: "..." }` in the
-  config or `test.use({ storageState: "..." })` in a test file. State files
-  hold session cookies, so never commit them.
+- Don't sign in through the UI in every test; see "Signing in" below.
 - When a test isn't about some backend data, mock it with `page.route` so the
   test doesn't break when that data changes. When the data matters, assert its
   shape (how many rows, which columns, a date format), not exact values that
   change.
+
+## Signing in
+
+Sign in once per run, not in every test. Give each role a sign-in in a setup
+file such as `e2e/auth.setup.ts`:
+
+```ts
+// e2e/auth.setup.ts
+import { expect, test } from "./fixtures";
+
+test.auth("member", async ({ page }) => {
+  await page.goto("/sign-in");
+  await page.getByLabel("Email").fill(process.env.E2E_MEMBER_EMAIL!);
+  await page.getByLabel("Password").fill(process.env.E2E_MEMBER_PASSWORD!);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByRole("button", { name: "Account menu" })).toBeVisible();
+});
+```
+
+- Tests pick a role with `use: { auth: "member" }` in the config, or
+  `test.use({ auth: "admin" })` in a file or describe.
+  `test.use({ auth: null })` starts signed out.
+- Each sign-in runs once per run, in a fresh signed-out browser, before the
+  tests that need it. Its cookies and storage are saved to
+  `.intelliwright/auth/<role>.json`, which must never be committed.
+- End every sign-in with an assertion that proves it worked, so the state is
+  saved only after the session cookies are set.
+- Read credentials from environment variables, such as `.env.local`, and use
+  dedicated test accounts. Never write a password in a test file.
+- If the app has a sign-in API, `page.request` shares cookies with the page,
+  so `await page.request.post("/api/sign-in", { data })` inside `test.auth`
+  is faster than the form.
+- Setup files hold only `test.auth()` sign-ins, one per role.
 
 ## Jev-powered checks and actions
 

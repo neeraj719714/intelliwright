@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Sign in</title>
+  </head>
+  <body>
+    <h1>Sign in</h1>
+    <form id="sign-in">
+      <label>Name <input name="name" autocomplete="username" /></label>
+      <label>Password <input name="password" type="password" autocomplete="current-password" /></label>
+      <button type="submit">Sign in</button>
+    </form>
+    <p id="sign-in-error" role="alert"></p>
+    <script>
+      document.getElementById("sign-in").addEventListener("submit", (event) => {
+        event.preventDefault();
+        const data = new FormData(event.target);
+        if (data.get("password") !== "letmein") {
+          document.getElementById("sign-in-error").textContent = "Wrong password";
+          return;
+        }
+        document.cookie = `session=${encodeURIComponent(data.get("name"))}; path=/; max-age=3600`;
+        localStorage.setItem("theme", "dark");
+        location.href = "/auth/account.html";
+      });
+    </script>
+  </body>
+</html>
