@@ -1,0 +1,134 @@
+---
+title: Installation
+description: Install Intelliwright, set up a project with intelliwright init, download a browser, and add a Jev key.
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+## Install the package
+
+Intelliwright needs Node.js 22 or newer. Add it to your project as a dev dependency:
+
+<Tabs groupId="package-manager">
+<TabItem value="npm" label="npm" default>
+
+```bash
+npm install --save-dev intelliwright
+```
+
+</TabItem>
+<TabItem value="pnpm" label="pnpm">
+
+```bash
+pnpm add -D intelliwright
+```
+
+</TabItem>
+<TabItem value="yarn" label="Yarn">
+
+```bash
+yarn add -D intelliwright
+```
+
+</TabItem>
+<TabItem value="bun" label="Bun">
+
+```bash
+bun add -d intelliwright
+```
+
+</TabItem>
+</Tabs>
+
+The package brings its own copy of Playwright's browser automation library, `playwright-core`, so you don't install Playwright separately. Types such as `Page` and `Locator` are exported from `intelliwright`.
+
+## Set up the project
+
+```bash
+npx intelliwright init
+```
+
+`init` asks which Jev provider you use, then creates these files:
+
+| File | What it holds |
+| --- | --- |
+| `intelliwright.config.ts` | The config: `baseURL`, a `webServer` that starts your app, and the Jev provider. |
+| `e2e/pages/home.page.ts` | A page object for your home page. |
+| `e2e/fixtures.ts` | Hands page objects to tests by name. |
+| `e2e/home.e2e.ts` | A first test, tagged `@smoke`. |
+
+It also:
+
+- adds `test-results/`, `intelliwright-report/` and the private files in `.intelliwright/` to `.gitignore`;
+- copies the agent skill into `.cursor/skills/intelliwright/` and `.claude/skills/intelliwright/`, so AI coding agents follow the same conventions. See [AI coding agents](../agent-skill.md).
+
+`init` never overwrites a file that already exists, and it never writes an API key. It fits the files to your project:
+
+- JavaScript projects get `.mjs` files instead of `.ts`.
+- The `webServer` command runs your `dev` script, or `start` if there's no `dev`.
+- `baseURL` uses port 5173 for Vite, 4321 for Astro, and 3000 otherwise.
+- The commands it prints match your package manager.
+
+| Option | What it does |
+| --- | --- |
+| `--provider <name>` | Skips the question. One of `typesafe`, `vercel`, `openrouter`, `cloudflare` or `auto`. |
+| `-y`, `--yes` | Asks nothing and uses `auto`: the first provider key found in the environment. |
+| `--no-skill` | Doesn't install the agent skill. |
+
+## Download a browser
+
+```bash
+npx intelliwright install
+```
+
+This downloads Chromium for the version of Playwright that Intelliwright uses. Name other browsers to get them instead, such as `npx intelliwright install firefox webkit`. On a fresh Linux machine or CI runner, add `--with-deps` to also install the system libraries the browsers need.
+
+## Add a Jev key
+
+Jev features need a key from one provider. Put it in `.env.local`, in the folder that holds the config:
+
+```bash title=".env.local"
+TYPESAFE_API_KEY=your-key
+```
+
+| Provider | Environment variables |
+| --- | --- |
+| TypeSafe | `TYPESAFE_API_KEY` |
+| Vercel AI Gateway | `AI_GATEWAY_API_KEY`, or `VERCEL_OIDC_TOKEN` |
+| OpenRouter | `OPENROUTER_API_KEY` |
+| Cloudflare Workers AI | `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` |
+
+Intelliwright loads `.env.local` and then `.env` from the config's folder. Variables already set in the environment are never overwritten. Keep `.env.local` out of git.
+
+Without a key, tests that don't use Jev features still run. See [Providers](../jev/providers.md) to pin a model, go through a proxy, use another host, or use the AI SDK.
+
+## TypeScript projects that build with Next.js
+
+`next build` type-checks every file that `tsconfig.json` includes, so the tests would become part of the app's build. Keep them out:
+
+```json title="tsconfig.json"
+{
+  "exclude": ["node_modules", "e2e", "intelliwright.config.ts"]
+}
+```
+
+To keep type checking for the tests in your editor, give `e2e/` its own `tsconfig.json`:
+
+```json title="e2e/tsconfig.json"
+{
+  "extends": "../tsconfig.json",
+  "include": ["**/*.ts", "../intelliwright.config.ts"],
+  "exclude": []
+}
+```
+
+The empty `exclude` matters: without it, this file would inherit the root's `exclude`, which leaves out `e2e`.
+
+## Run the tests
+
+```bash
+npx intelliwright test
+```
+
+With `webServer` set, Intelliwright starts your app, waits for it to respond, runs the tests, and stops it again. Continue with [Your first test](first-test.md).
