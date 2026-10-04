@@ -4,7 +4,8 @@
 *.env.*
 !.env.example
 
-# PLAN.md
+PLAN.md
+PLAN-v1.md
 
 node_modules/
 dist/
