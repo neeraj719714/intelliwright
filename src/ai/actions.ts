@@ -29,6 +29,7 @@ const VERBS: Record<ActionKind, string> = {
   check: "checked or unchecked",
   hover: "hovered",
   locate: "located",
+  run: "used next",
 };
 
 const NOUNS: Record<ActionKind, string> = {
@@ -38,6 +39,7 @@ const NOUNS: Record<ActionKind, string> = {
   check: "checkboxes, radio buttons or switches",
   hover: "elements to hover",
   locate: "elements",
+  run: "elements to use",
 };
 
 /** How long a cached locator gets to appear before it's resolved again. */
@@ -149,7 +151,7 @@ async function matchesOne(locator: Locator, timeout: number): Promise<boolean> {
   }
 }
 
-interface Readable {
+export interface Readable {
   locator: Locator;
   code: string;
   /** Undefined when only the snapshot reference works, which can't be cached. */
@@ -161,7 +163,7 @@ interface Readable {
  * then role and name, then the same inside its landmark, then label,
  * placeholder or text, then role and name with an index.
  */
-async function readableLocator(page: Page, candidate: Candidate, testIdAttribute: string): Promise<Readable> {
+export async function readableLocator(page: Page, candidate: Candidate, testIdAttribute: string): Promise<Readable> {
   const target = page.locator(`aria-ref=${candidate.ref}`);
   const handle = await target.elementHandle({ timeout: 2_000 });
   const fallback: Readable = { locator: target, code: `page.locator('aria-ref=${candidate.ref}')`, descriptor: undefined };

@@ -14,6 +14,8 @@ const candidate = (description: string): Candidate => ({
   text: "",
   landmark: undefined,
   placeholder: undefined,
+  url: undefined,
+  fillable: false,
   description,
 });
 

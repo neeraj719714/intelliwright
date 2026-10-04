@@ -41,6 +41,8 @@ export interface AiRuntimeOptions {
   step: <T>(title: string, body: () => Promise<T>) => Promise<T>;
   /** Adds a finished, zero-length step, such as "used the cached locator". */
   note: (title: string) => void;
+  /** Attaches text to the test, shown in reports. */
+  attach: (name: string, body: string) => void;
   /** Undefined when `ai.cache` is off. */
   cache: LocatorCache | undefined;
   testIdAttribute: string;
@@ -58,6 +60,7 @@ export class AiRuntime {
   readonly #jev: () => Jev | undefined;
   readonly #step: <T>(title: string, body: () => Promise<T>) => Promise<T>;
   readonly #note: (title: string) => void;
+  readonly #attach: (name: string, body: string) => void;
 
   constructor(options: AiRuntimeOptions) {
     this.settings = options.settings;
@@ -68,10 +71,15 @@ export class AiRuntime {
     this.#jev = options.jev;
     this.#step = options.step;
     this.#note = options.note;
+    this.#attach = options.attach;
   }
 
   note(title: string): void {
     this.#note(title);
+  }
+
+  attach(name: string, body: string): void {
+    this.#attach(name, body);
   }
 
   jev(): Jev {

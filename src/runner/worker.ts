@@ -280,6 +280,7 @@ export class WorkerRunner {
       signal: info.signal,
       step: (title, body) => steps.run(title, "ai", body),
       note: (title) => steps.record({ title, category: "ai", startTime: Date.now(), duration: 0 }),
+      attach: (name, body) => info.attachments.push({ name, contentType: "text/plain", body }),
       cache: this.#locatorCache(),
       testIdAttribute: this.config.testIdAttribute,
       baseURL: this.config.baseURL,

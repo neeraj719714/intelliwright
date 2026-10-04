@@ -1,5 +1,6 @@
 import type { Locator, Page } from "playwright-core";
 import { resolveTarget, type ActionOptions } from "./actions.js";
+import { GoalNotReachedError, runGoal, type RunOptions, type RunResult } from "./agent.js";
 import type { ActionKind } from "./candidates.js";
 import { describeAnswer, describeQuestion, type AiRuntime } from "./runtime.js";
 import type { Answers, Questions } from "./types.js";
@@ -14,7 +15,7 @@ export interface CheckOptions extends ActionOptions {
   checked?: boolean;
 }
 
-export type { ActionOptions };
+export type { ActionOptions, RunOptions, RunResult };
 
 /** Jev-powered helpers bound to the test's page. Available as the `ai` fixture. */
 export interface Ai {
@@ -35,6 +36,12 @@ export interface Ai {
   hover(description: string, options?: ActionOptions): Promise<void>;
   /** Returns a normal Playwright locator for the element that fits the description. */
   locate(description: string, options?: ActionOptions): Promise<Locator>;
+  /**
+   * Works towards a plain-English goal one click or fill at a time, and
+   * throws if the goal isn't reached. Text comes from `data`. The result,
+   * and the report, include the same flow as fixed Playwright code.
+   */
+  run(goal: string, options?: RunOptions): Promise<RunResult>;
 }
 
 export function createAi(page: Page, runtime: AiRuntime): Ai {
@@ -79,5 +86,12 @@ export function createAi(page: Page, runtime: AiRuntime): Ai {
       act("check", description, options, (locator) => locator.setChecked(options?.checked ?? true, { timeout: options?.timeout })),
     hover: (description, options) => act("hover", description, options, (locator) => locator.hover({ timeout: options?.timeout })),
     locate: (description, options) => act("locate", description, options, async (locator) => locator),
+    run: (goal, options) =>
+      runtime.step(`ai.run(${JSON.stringify(goal)})`, async () => {
+        if (typeof goal !== "string" || !goal.trim()) throw new Error('ai.run() needs a goal, such as "sign up for the newsletter".');
+        const result = await runGoal(page, runtime, goal, options);
+        if (!result.goalMet) throw new GoalNotReachedError(result);
+        return result;
+      }),
   };
 }

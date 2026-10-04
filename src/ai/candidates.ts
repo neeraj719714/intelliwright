@@ -1,6 +1,6 @@
 import type { Page } from "playwright-core";
 
-export type ActionKind = "click" | "fill" | "select" | "check" | "hover" | "locate";
+export type ActionKind = "click" | "fill" | "select" | "check" | "hover" | "locate" | "run";
 
 /** An element an action could target, as Jev sees it. */
 export interface Candidate {
@@ -15,6 +15,10 @@ export interface Candidate {
   /** Nearest landmark around it, such as `navigation "Main"`. */
   landmark: { role: string; name?: string } | undefined;
   placeholder: string | undefined;
+  /** Where a link goes, as written in the page. */
+  url: string | undefined;
+  /** A text field, which takes a value instead of a click. */
+  fillable: boolean;
   /** What Jev reads, such as `button "Sign in" in banner`. */
   description: string;
 }
@@ -25,10 +29,19 @@ interface AiNode {
   text?: string;
   ref?: string;
   cursor?: string;
+  url?: string;
   placeholder?: string;
   disabled?: boolean;
+  checked?: boolean | "mixed";
   box?: { width: number; height: number };
   children?: Array<AiNode | string>;
+}
+
+/** Whether a field is filled in or a box is checked, without the value itself. */
+function stateOf(node: AiNode, fillable: boolean): string {
+  if (fillable) return node.text ? " (filled in)" : " (empty)";
+  if (CHECKABLE.has(node.role ?? "")) return node.checked === "mixed" ? " (partly checked)" : node.checked ? " (checked)" : " (not checked)";
+  return "";
 }
 
 /** The most options a choice question takes, leaving one for `none`. */
@@ -59,7 +72,14 @@ function fits(kind: ActionKind, node: AiNode): boolean {
       return CHECKABLE.has(role);
     case "locate":
       return CLICKABLE.has(role) || node.cursor === "pointer" || (!SKIP_FOR_LOCATE.has(role) && Boolean(node.name || node.text));
+    case "run":
+      return (CLICKABLE.has(role) || node.cursor === "pointer") && !(role === "combobox" && hasOptions) && role !== "option";
   }
+}
+
+function isFillable(node: AiNode): boolean {
+  const hasOptions = Boolean(node.children?.some((child) => typeof child !== "string" && child.role === "option"));
+  return FILLABLE.has(node.role ?? "") && !(node.role === "combobox" && hasOptions);
 }
 
 function textOf(node: AiNode): string {
@@ -87,10 +107,12 @@ export async function findCandidates(page: Page, kind: ActionKind): Promise<Cand
       const role = node.role ?? "generic";
       const visible = !node.box || (node.box.width > 0 && node.box.height > 0);
       if (node.ref && visible && !node.disabled && fits(kind, node)) {
+        const fillable = isFillable(node);
         const name = node.name ?? "";
-        const text = name ? "" : textOf(node);
+        const text = name || fillable ? "" : textOf(node);
         const label = name || text;
         const where = landmark ? ` in ${landmark.role}${landmark.name ? ` ${JSON.stringify(landmark.name)}` : ""}` : "";
+        const placeholder = node.placeholder ? ` (placeholder ${JSON.stringify(node.placeholder)})` : "";
         candidates.push({
           key: `e${candidates.length}`,
           ref: node.ref,
@@ -99,10 +121,13 @@ export async function findCandidates(page: Page, kind: ActionKind): Promise<Cand
           text,
           landmark,
           placeholder: node.placeholder,
-          description: `${role}${label ? ` ${JSON.stringify(label)}` : ""}${node.placeholder ? ` (placeholder ${JSON.stringify(node.placeholder)})` : ""}${where}`,
+          url: node.url,
+          fillable,
+          description: `${role}${label ? ` ${JSON.stringify(label)}` : ""}${placeholder}${stateOf(node, fillable)}${where}`,
         });
       }
-      const inner = LANDMARKS.has(role) ? { role, name: node.name } : landmark;
+      const isContext = LANDMARKS.has(role) || (role === "group" && Boolean(node.name));
+      const inner = isContext ? { role, name: node.name } : landmark;
       if (node.children) walk(node.children, inner);
     }
   };

@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Sign up</title>
+  </head>
+  <body>
+    <header>
+      <nav aria-label="Main">
+        <a href="/">Home</a>
+        <a href="https://partner.example/">Visit our partner</a>
+      </nav>
+    </header>
+    <main>
+      <section id="start">
+        <h1>Create your account</h1>
+        <p>It takes three short steps.</p>
+        <button id="get-started" type="button">Get started</button>
+        <button id="delete" type="button">Delete account</button>
+      </section>
+      <section id="details" hidden>
+        <h1>Your details</h1>
+        <label>Full name <input id="name" /></label>
+        <label>Email <input id="email" type="email" /></label>
+        <p id="details-error" role="alert"></p>
+        <button id="details-continue" type="button">Continue</button>
+      </section>
+      <section id="plan" hidden>
+        <h1>Choose a plan</h1>
+        <fieldset>
+          <legend>Plan</legend>
+          <label><input type="radio" name="plan" value="Free" /> Free</label>
+          <label><input type="radio" name="plan" value="Pro" /> Pro</label>
+        </fieldset>
+        <button id="create" type="button">Create account</button>
+      </section>
+      <section id="done" hidden>
+        <h1 id="welcome"></h1>
+        <p id="summary"></p>
+      </section>
+    </main>
+    <script>
+      const byId = (id) => document.getElementById(id);
+      const show = (id) => {
+        for (const section of document.querySelectorAll("main > section")) section.hidden = section.id !== id;
+      };
+      byId("get-started").addEventListener("click", () => show("details"));
+      byId("delete").addEventListener("click", () => {
+        document.querySelector("main").innerHTML = "<h1>Account deleted</h1>";
+      });
+      byId("details-continue").addEventListener("click", () => {
+        if (!byId("name").value || !byId("email").value) {
+          byId("details-error").textContent = "Please enter your name and email.";
+          return;
+        }
+        show("plan");
+      });
+      byId("create").addEventListener("click", () => {
+        const plan = document.querySelector('input[name="plan"]:checked');
+        if (!plan) return;
+        byId("welcome").textContent = `Welcome aboard, ${byId("name").value}!`;
+        byId("summary").textContent = `You are on the ${plan.value} plan.`;
+        show("done");
+      });
+    </script>
+  </body>
+</html>
