@@ -1,4 +1,27 @@
 export { defineConfig } from "./config/define-config.js";
+export { BasePage } from "./pom/base-page.js";
+export type {
+  APIRequestContext,
+  APIResponse,
+  Browser,
+  BrowserContext,
+  BrowserContextOptions,
+  ConsoleMessage,
+  Dialog,
+  Download,
+  ElementHandle,
+  Frame,
+  FrameLocator,
+  JSHandle,
+  Keyboard,
+  LaunchOptions,
+  Locator,
+  Mouse,
+  Page,
+  Request,
+  Response,
+  Route,
+} from "playwright-core";
 export type {
   AiConfig,
   BrowserName,

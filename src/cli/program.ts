@@ -73,6 +73,16 @@ export function createProgram(entry: string): Command {
     });
 
   program
+    .command("init")
+    .description("set up Intelliwright in this project: config, e2e/ page objects and an example test")
+    .option("--provider <name>", "Jev provider: typesafe, vercel, openrouter, cloudflare or auto")
+    .option("-y, --yes", "don't ask questions; use the defaults")
+    .action(async (options: { provider?: string; yes?: boolean }) => {
+      const { init } = await import("./init.js");
+      process.exitCode = await init({ cwd: process.cwd(), ...options });
+    });
+
+  program
     .command("show-report")
     .description("serve the last HTML report and open it in the browser")
     .argument("[folder]", "report folder", "intelliwright-report")
