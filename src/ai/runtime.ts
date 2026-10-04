@@ -3,7 +3,7 @@ import type { LocatorCache } from "./cache.js";
 import { JevError } from "./errors.js";
 import { capturePageState, type CapturedState } from "./page-state.js";
 import type { Jev } from "./providers/resolve.js";
-import type { Answer, EvaluateRequest, EvaluateResult, Question, Questions } from "./types.js";
+import type { Answer, BooleanQuestion, EvaluateRequest, EvaluateResult, Question, Questions } from "./types.js";
 
 /** One answer from Jev, as shown in reports. */
 export interface AiDecision {
@@ -27,6 +27,13 @@ export interface AiRuntimeSettings {
   updateCache: boolean;
   redact: ReadonlyArray<RegExp | string>;
 }
+
+/** Asked alongside checks and run steps, so a page that is still busy gets time to finish. */
+export const LOADING: BooleanQuestion = {
+  type: "boolean",
+  instructions:
+    "Is the page still loading, for example showing a spinner, a skeleton, a progress bar or a loading message, or waiting for content to appear?",
+};
 
 export const NO_PROVIDER_MESSAGE: string =
   "No Jev provider is configured, so AI checks and actions can't run. Set TYPESAFE_API_KEY " +

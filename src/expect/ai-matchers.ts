@@ -1,7 +1,7 @@
 import type { MatcherContext } from "expect";
 import type { Locator, Page } from "playwright-core";
 import type { PageState } from "../ai/page-state.js";
-import { describeAnswer, type AiRuntime } from "../ai/runtime.js";
+import { describeAnswer, LOADING, type AiRuntime } from "../ai/runtime.js";
 import type { Answers, BooleanQuestion, EvaluateResult, Questions, ScoreQuestion } from "../ai/types.js";
 import { shared } from "../runner/state.js";
 import { asStep, expectTimeout, isLocator, isPage, type MatcherResult } from "./web-matchers.js";
@@ -20,12 +20,6 @@ export interface ScoreMatcherOptions {
   atMost?: number;
   timeout?: number;
 }
-
-const LOADING: BooleanQuestion = {
-  type: "boolean",
-  instructions:
-    "Is the page still loading, for example showing a spinner, a skeleton, a progress bar or a loading message, or waiting for content to appear?",
-};
 
 /** After a failing answer on a page that isn't loading, wait this long for it to change. */
 const SETTLE_MS = 1_000;
