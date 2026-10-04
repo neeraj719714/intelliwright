@@ -1,5 +1,5 @@
 import { test } from "intelliwright";
-import { logWorker } from "./support";
+import { logCleanup, logWorker } from "./support";
 
 test.beforeEach(({}, testInfo) => logWorker(testInfo));
 
@@ -8,3 +8,5 @@ test("runs out of time", async ({ page }) => {
   await page.goto("/");
   await new Promise((resolve) => setTimeout(resolve, 5_000));
 });
+
+test.afterEach(async ({ page }, testInfo) => logCleanup(page, testInfo));

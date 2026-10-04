@@ -100,11 +100,13 @@ class Deadline {
   readonly promise: Promise<never>;
   readonly #start = Date.now();
   readonly #info: TestInfoImpl;
+  readonly #message: ((timeout: number) => string) | undefined;
   #timer: NodeJS.Timeout | undefined;
   #reject!: (error: Error) => void;
 
-  constructor(info: TestInfoImpl) {
+  constructor(info: TestInfoImpl, message?: (timeout: number) => string) {
     this.#info = info;
+    this.#message = message;
     this.promise = new Promise<never>((_, reject) => (this.#reject = reject));
     this.promise.catch(() => {});
     info.onTimeoutChange = () => this.#arm();
@@ -116,7 +118,10 @@ class Deadline {
     const timeout = this.#info.timeout;
     if (timeout <= 0) return;
     const remaining = this.#start + timeout - Date.now();
-    this.#timer = setTimeout(() => this.#reject(new TestTimeoutError(timeout)), Math.max(0, remaining));
+    this.#timer = setTimeout(
+      () => this.#reject(new TestTimeoutError(timeout, this.#message?.(timeout))),
+      Math.max(0, remaining),
+    );
   }
 
   stop(): void {
@@ -325,20 +330,23 @@ export class WorkerRunner {
     } catch (error) {
       fail(error);
     }
+    deadline.stop();
+    if (errors.length > 0 && status === "passed") status = "failed";
+    info.status = status;
 
-    if (status !== "timedOut") {
-      for (const hook of afterEach) {
-        const run = steps.run("afterEach hook", "hook", async () => hook.fn(await scope.values(hook.deps), info), hook.location);
-        run.catch(() => {});
-        try {
-          await Promise.race([run, deadline.promise]);
-        } catch (error) {
-          fail(error);
-          if ((status as TestStatus) === "timedOut") break;
-        }
+    // As in Playwright, afterEach hooks run even after a timeout, with a budget of their own.
+    const cleanup = new Deadline(info, (timeout) => `afterEach hooks ran out of time: they get ${timeout}ms after the test.`);
+    for (const hook of afterEach) {
+      const run = steps.run("afterEach hook", "hook", async () => hook.fn(await scope.values(hook.deps), info), hook.location);
+      run.catch(() => {});
+      try {
+        await Promise.race([run, cleanup.promise]);
+      } catch (error) {
+        fail(error);
+        if (error instanceof TestTimeoutError) break;
       }
     }
-    deadline.stop();
+    cleanup.stop();
     if (errors.length > 0 && status === "passed") status = "failed";
     info.status = status;
 

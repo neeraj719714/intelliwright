@@ -9,8 +9,8 @@ import type { Annotation, Attachment, TestInfo, TestStatus } from "./types.js";
 
 export class TestTimeoutError extends Error {
   override readonly name: string = "TestTimeoutError";
-  constructor(timeout: number) {
-    super(`Test timeout of ${timeout}ms exceeded.`);
+  constructor(timeout: number, message = `Test timeout of ${timeout}ms exceeded.`) {
+    super(message);
   }
 }
 

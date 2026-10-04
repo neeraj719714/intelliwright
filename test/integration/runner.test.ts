@@ -18,10 +18,15 @@ describe("the basic project", () => {
   let run: CliResult;
   let port: number;
   const workerLog = path.join(scratch, "workers.log");
+  const cleanupLog = path.join(scratch, "cleanup.log");
 
   beforeAll(async () => {
     port = await freePort();
-    run = await runCli(["test"], { cwd: basic, env: { FIXTURE_PORT: String(port), WORKER_LOG: workerLog } });
+    run = await runCli(["test"], { cwd: basic, env: { FIXTURE_PORT: String(port), WORKER_LOG: workerLog, CLEANUP_LOG: cleanupLog } });
+  });
+
+  test("afterEach hooks run after a timeout, with the page still open and the status set", () => {
+    expect(readFileSync(cleanupLog, "utf8").trim().split("\n")).toEqual(["timedOut Fixture Home", "timedOut Fixture Home"]);
   });
 
   test("runs several files across two workers", () => {
