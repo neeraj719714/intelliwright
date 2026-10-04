@@ -184,6 +184,9 @@ function Header({ data }: { data: ReportData }): JSX.Element {
           <pre>{error.message}</pre>
         </div>
       ))}
+      {data.notes.map((note) => (
+        <p class="meta status-flaky">{note}</p>
+      ))}
     </header>
   );
 }

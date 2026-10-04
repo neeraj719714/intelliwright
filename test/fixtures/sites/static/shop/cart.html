@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Cart</title>
+  </head>
+  <body>
+    <main>
+      <h1>Your cart</h1>
+      <ul aria-label="Items">
+        <li data-price="10">Notebook – $10</li>
+        <li data-price="5">Pen – $5</li>
+        <li data-price="15">Bag – $15</li>
+      </ul>
+      <p data-testid="total"></p>
+      <button type="button">Checkout</button>
+    </main>
+    <script>
+      const prices = [...document.querySelectorAll("li")].map((item) => Number(item.dataset.price));
+      // The bug: the last item is left out of the total.
+      const total = prices.slice(0, -1).reduce((sum, price) => sum + price, 0);
+      document.querySelector('[data-testid="total"]').textContent = `Total: $${total}`;
+    </script>
+  </body>
+</html>

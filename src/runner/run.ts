@@ -168,7 +168,12 @@ async function execute(
   const running = new Map<number, string>();
   const finish = (test: TestCase, result: AttemptResult, willRetry: boolean): void => {
     test.results.push(result);
-    if (!willRetry) test.outcome = outcomeOf(test);
+    if (!willRetry) {
+      test.outcome = outcomeOf(test);
+      test.triage =
+        result.triage ??
+        (test.outcome === "flaky" ? { label: "flaky", note: `Failed, then passed on retry ${result.retry}.` } : undefined);
+    }
     emit(reporters, (reporter) => reporter.onTestEnd?.(test, result, willRetry));
   };
   const addError = (error: SerializedError): void => {
@@ -264,6 +269,7 @@ async function execute(
     errors,
     counts,
     ai: aiSummary(tests),
+    notes: [...new Set(tests.flatMap((test) => test.results.at(-1)?.triageSkipped ?? []))],
   };
   try {
     writeLastRun(config.outputDir, {

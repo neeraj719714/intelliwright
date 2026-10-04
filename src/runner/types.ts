@@ -2,6 +2,7 @@ import type { Browser, BrowserContext, Page } from "playwright-core";
 import type { Ai } from "../ai/fixture.js";
 import type { AiDecision } from "../ai/runtime.js";
 import type { UsageTotals } from "../ai/usage.js";
+import type { TriageResult } from "../reporters/types.js";
 
 /** Jev's part in one attempt. */
 export interface AttemptAi {
@@ -72,6 +73,10 @@ export interface AttemptResult {
   outputDir?: string;
   /** Present when the attempt used Jev. */
   ai?: AttemptAi;
+  /** Why the final failed attempt failed. */
+  triage?: TriageResult;
+  /** Why triage didn't run, such as no Jev provider. */
+  triageSkipped?: string;
 }
 
 export interface TestInfo {

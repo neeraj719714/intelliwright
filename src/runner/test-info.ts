@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { copyFileSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { ResolvedConfig } from "../config/types.js";
+import type { ArtifactRecorder } from "./artifacts.js";
 import { SkipSignal } from "./collect.js";
 import type { TestNode } from "./tree.js";
 import type { Annotation, Attachment, TestInfo, TestStatus } from "./types.js";
@@ -55,6 +56,8 @@ export class TestInfoImpl implements TestInfo {
   readonly annotations: Annotation[];
   readonly attachments: Attachment[] = [];
   status: TestStatus | undefined = undefined;
+  /** Console and network logs of the test's browser context, for artifacts and triage. */
+  recorder: ArtifactRecorder | undefined = undefined;
   /** Called when `setTimeout` changes the deadline. */
   onTimeoutChange: (() => void) | undefined;
   readonly #controller = new AbortController();

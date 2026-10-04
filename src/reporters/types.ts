@@ -69,6 +69,8 @@ export interface RunSummary {
   errors: SerializedError[];
   counts: Counts;
   ai?: AiRunSummary;
+  /** Things the reader should know, such as triage being skipped. */
+  notes: string[];
 }
 
 export interface Reporter {

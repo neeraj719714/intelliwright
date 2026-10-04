@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Recommendations</title>
+  </head>
+  <body>
+    <main>
+      <h1>Recommended for you</h1>
+      <p id="list" aria-busy="true">Loading recommendations…</p>
+    </main>
+    <script>
+      setTimeout(() => {
+        const list = document.getElementById("list");
+        list.removeAttribute("aria-busy");
+        list.textContent = "Item loaded: Travel mug";
+      }, 3000);
+    </script>
+  </body>
+</html>

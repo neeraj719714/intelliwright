@@ -4,6 +4,7 @@ import { LocatorCache } from "../ai/cache.js";
 import { createAi } from "../ai/fixture.js";
 import { resolveJev, type Jev } from "../ai/providers/resolve.js";
 import { AiRuntime } from "../ai/runtime.js";
+import { askJevForTriage, ruleTriage } from "../ai/triage.js";
 import { emptyUsage, subtractUsage } from "../ai/usage.js";
 import { ArtifactRecorder, finishArtifacts } from "./artifacts.js";
 import { loadConfig } from "../config/load-config.js";
@@ -339,6 +340,11 @@ export class WorkerRunner {
     if (errors.length > 0 && status === "passed") status = "failed";
     info.status = status;
 
+    const finalFailure = (status === "failed" || status === "timedOut") && retry >= this.config.retries;
+    const triage = finalFailure && this.config.ai.triage !== false
+      ? await this.#triage(test, errors, steps.steps, info, scope.peek("page") as Page | undefined, ai)
+      : {};
+
     try {
       const teardownErrors = await withTimeout(scope.teardown(), TEARDOWN_TIMEOUT_MS, "Fixture teardown");
       for (const error of teardownErrors) fail(error);
@@ -368,7 +374,49 @@ export class WorkerRunner {
       attachments: info.attachments,
       outputDir: existsSync(info.outputDir) ? info.outputDir : undefined,
       ai: jev && (usage.calls > 0 || ai.decisions.length > 0) ? { provider: jev.provider, usage, decisions: ai.decisions } : undefined,
+      ...triage,
     };
+  }
+
+  /** Labels the final failure: rules first, then Jev while the page is still open. */
+  async #triage(
+    test: TestNode,
+    errors: unknown[],
+    steps: StepResult[],
+    info: TestInfoImpl,
+    page: Page | undefined,
+    ai: AiRuntime,
+  ): Promise<Pick<AttemptResult, "triage" | "triageSkipped">> {
+    const serialized = errors.map((error) => serializeError(error, this.config.rootDir));
+    const byRule = ruleTriage(serialized, this.config.baseURL);
+    if (byRule) return { triage: byRule };
+
+    let jev: Jev | undefined;
+    try {
+      jev = this.jev();
+    } catch (error) {
+      return { triageSkipped: `Triage was skipped: ${(error as Error).message}` };
+    }
+    if (!jev) return { triageSkipped: "Triage was skipped because no Jev provider is configured." };
+    try {
+      const { triage, decision } = await askJevForTriage(
+        {
+          titlePath: test.titlePath,
+          errors: serialized,
+          steps,
+          console: info.recorder?.console ?? [],
+          network: info.recorder?.network ?? [],
+          page,
+          baseURL: this.config.baseURL,
+        },
+        jev,
+        this.config.ai.redact ?? [],
+      );
+      ai.record(decision);
+      return { triage };
+    } catch (error) {
+      return { triageSkipped: `Triage failed: ${(error as Error).message}` };
+    }
   }
 
   #builtins(test: TestNode, ai: AiRuntime): FixtureLayer {
@@ -395,6 +443,7 @@ export class WorkerRunner {
           context.setDefaultTimeout(actionTimeout ?? 0);
           context.setDefaultNavigationTimeout(navigationTimeout ?? 0);
           const recorder = new ArtifactRecorder(context);
+          info.recorder = recorder;
           await context.tracing.start({ screenshots: true, snapshots: true, sources: true, title: info.titlePath.join(" › ") });
           await provide(context);
           await finishArtifacts(context, recorder, info);

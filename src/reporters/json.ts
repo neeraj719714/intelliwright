@@ -31,6 +31,7 @@ export class JsonReporter implements Reporter {
       duration: summary.duration,
       stats,
       ai: summary.ai,
+      notes: summary.notes,
       errors: summary.errors.map((error) => ({ ...error, message: stripAnsi(error.message) })),
       tests: summary.tests.map((test) => ({
         id: test.id,

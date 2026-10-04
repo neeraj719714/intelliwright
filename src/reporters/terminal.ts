@@ -73,7 +73,9 @@ export class TerminalReporter implements Reporter {
     if (counts.passed) lines.push(c.green(`${counts.passed} passed`));
     if (counts.failed) {
       lines.push(c.red(`${counts.failed} failed`));
-      for (const test of failed) lines.push(c.red(`  ${testLabel(test)}`));
+      for (const test of failed) {
+        lines.push(`${c.red(`  ${testLabel(test)}`)}${test.triage ? c.dim(` [${test.triage.label}]`) : ""}`);
+      }
     }
     if (counts.flaky) {
       lines.push(c.yellow(`${counts.flaky} flaky`));
@@ -93,6 +95,7 @@ export class TerminalReporter implements Reporter {
           `${usage.inputTokens.toLocaleString("en-US")} input tokens, ${formatCost(usage.costUsd)}${usage.costEstimated ? " (estimated)" : ""}\n`,
       );
     }
+    for (const note of summary.notes) this.#write(`\n  ${c.yellow(note)}\n`);
     this.#write(`\n  ${c.dim(`Finished in ${formatDuration(summary.duration)}`)}\n\n`);
   }
 
@@ -109,7 +112,8 @@ export class TerminalReporter implements Reporter {
     const { triage } = test;
     if (triage) {
       const probability = triage.probability === undefined ? "" : ` (${Math.round(triage.probability * 100)}%)`;
-      this.#write(`\n    ${c.bold("Triage:")} ${triage.label}${probability}${triage.note ? c.dim(` ${triage.note}`) : ""}\n`);
+      const severity = triage.severity === undefined ? "" : `, severity ${triage.severity.toFixed(1)} of 3`;
+      this.#write(`\n    ${c.bold("Triage:")} ${triage.label}${probability}${severity}${triage.note ? c.dim(`. ${triage.note}`) : ""}\n`);
     }
     if (last?.outputDir) this.#write(c.dim(`\n    Artifacts: ${this.#relative(last.outputDir)}\n`));
   }

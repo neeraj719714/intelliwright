@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Items</title>
+  </head>
+  <body>
+    <main>
+      <h1>All items</h1>
+      <ul id="items" aria-label="Items"></ul>
+      <p id="message" role="status"></p>
+    </main>
+    <script>
+      const api = new URLSearchParams(location.search).get("api") ?? "";
+      fetch(`${api}/api/items`)
+        .then((response) => response.json())
+        .then((items) => {
+          document.getElementById("items").innerHTML = items.map((item) => `<li>${item}</li>`).join("");
+        })
+        .catch(() => {
+          document.getElementById("message").textContent = "Couldn't load items. Try again later.";
+        });
+    </script>
+  </body>
+</html>

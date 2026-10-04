@@ -113,6 +113,7 @@ export class FixtureScope {
   readonly #testInfo: TestInfo;
   readonly #instances = new Map<string, Promise<Instance>>();
   readonly #order: Instance[] = [];
+  readonly #latest = new Map<string, unknown>();
 
   constructor(builtins: FixtureLayer, layers: readonly FixtureLayer[], testInfo: TestInfo) {
     this.#builtins = builtins;
@@ -124,6 +125,11 @@ export class FixtureScope {
     const values: Record<string, unknown> = {};
     for (const name of names) values[name] = await this.#get(name, this.#layers.length, []);
     return values;
+  }
+
+  /** The value of a fixture if this test already set it up, without setting it up. */
+  peek(name: string): unknown {
+    return this.#latest.get(name);
   }
 
   /** Tears down in reverse setup order and returns every teardown error. */
@@ -175,6 +181,7 @@ export class FixtureScope {
     if (!definition.fn) {
       const instance = { name: definition.name, value: definition.value, teardown: async () => {} };
       this.#order.push(instance);
+      this.#latest.set(definition.name, instance.value);
       return instance;
     }
 
@@ -210,6 +217,7 @@ export class FixtureScope {
     );
 
     const value = await valuePromise;
+    this.#latest.set(definition.name, value);
     const instance: Instance = {
       name: definition.name,
       value,

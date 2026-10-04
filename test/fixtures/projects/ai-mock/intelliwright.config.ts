@@ -16,6 +16,7 @@ export default defineConfig({
   reporters: ["json"],
   ai: {
     provider,
+    triage: false,
     minProbability: 0.7,
     redact: [/\b\d{4}-\d{4}-\d{4}-\d{4}\b/, "[data-private]"],
   },

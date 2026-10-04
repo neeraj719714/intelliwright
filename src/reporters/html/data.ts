@@ -50,6 +50,7 @@ export interface ReportData {
   counts: Counts;
   errors: SerializedError[];
   ai?: AiRunSummary;
+  notes: string[];
   tests: ReportTest[];
 }
 
@@ -90,6 +91,7 @@ export function buildReportData(summary: RunSummary, folder: string, rootDir: st
     counts: summary.counts,
     errors: summary.errors.map(clean),
     ai: summary.ai,
+    notes: summary.notes,
     tests: summary.tests.map((test) => ({
       id: test.id,
       title: test.title,

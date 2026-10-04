@@ -7,7 +7,7 @@ import type { Answer, EvaluateRequest, EvaluateResult, Question, Questions } fro
 
 /** One answer from Jev, as shown in reports. */
 export interface AiDecision {
-  kind: "assertion" | "action" | "run" | "evaluate";
+  kind: "assertion" | "action" | "run" | "evaluate" | "triage";
   /** The claim, action description or question. */
   question: string;
   /** The choice, score, or `yes`/`no` for a boolean. */
