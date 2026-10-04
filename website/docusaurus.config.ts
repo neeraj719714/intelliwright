@@ -12,8 +12,9 @@ const config: Config = {
     v4: true,
   },
 
-  url: 'https://intelliwright.dev',
-  baseUrl: '/',
+  url: 'https://neeraj719714.github.io',
+  baseUrl: '/intelliwright/',
+  trailingSlash: false,
 
   onBrokenLinks: 'throw',
   onBrokenAnchors: 'throw',
@@ -71,6 +72,11 @@ const config: Config = {
           label: 'npm',
           position: 'right',
         },
+        {
+          href: 'https://github.com/neeraj719714/intelliwright',
+          label: 'GitHub',
+          position: 'right',
+        },
       ],
     },
     footer: {
@@ -95,6 +101,7 @@ const config: Config = {
         {
           title: 'More',
           items: [
+            {label: 'GitHub', href: 'https://github.com/neeraj719714/intelliwright'},
             {label: 'npm', href: 'https://www.npmjs.com/package/intelliwright'},
             {label: 'Jev by TypeSafe', href: 'https://docs.typesafe.ai/introduction'},
             {label: 'Playwright', href: 'https://playwright.dev'},
