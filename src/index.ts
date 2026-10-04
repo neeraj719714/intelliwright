@@ -8,7 +8,7 @@ export type {
   UseOptions,
   WebServerConfig,
 } from "./config/types.js";
-export { expect } from "./expect/index.js";
+export { expect, type TextOptions, type TimeoutOptions, type ViewportOptions } from "./expect/index.js";
 export {
   test,
   type DescribeFunction,

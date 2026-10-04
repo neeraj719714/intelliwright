@@ -16,6 +16,8 @@ const config: ViteUserConfig = defineConfig({
         test: {
           name: "integration",
           include: ["test/integration/**/*.test.ts"],
+          // Files share fixture projects and their output folders.
+          fileParallelism: false,
           testTimeout: 120_000,
           hookTimeout: 120_000,
         },

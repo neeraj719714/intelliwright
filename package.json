@@ -24,7 +24,9 @@
   },
   "devDependencies": {
     "@arethetypeswrong/core": "^0.18.5",
+    "@types/babel__code-frame": "^7.27.0",
     "@types/node": "^22.20.5",
+    "preact": "^11.0.0",
     "publint": "^0.3.25",
     "tsdown": "^0.23.0",
     "typescript": "^7.0.2",
@@ -37,6 +39,7 @@
     "./package.json": "./package.json"
   },
   "dependencies": {
+    "@babel/code-frame": "^7.29.7",
     "commander": "^14.0.3",
     "expect": "^30.5.2",
     "jiti": "^2.7.0",

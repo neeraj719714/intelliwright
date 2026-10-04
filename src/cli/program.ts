@@ -73,6 +73,18 @@ export function createProgram(entry: string): Command {
     });
 
   program
+    .command("show-report")
+    .description("serve the last HTML report and open it in the browser")
+    .argument("[folder]", "report folder", "intelliwright-report")
+    .option("--port <port>", "port to serve on", wholeNumber(0), 9323)
+    .option("--host <host>", "host to serve on", "localhost")
+    .option("--no-open", "don't open the browser")
+    .action(async (folder: string, options: { port: number; host: string; open: boolean }) => {
+      const { showReport } = await import("./show-report.js");
+      process.exitCode = await showReport(folder, options);
+    });
+
+  program
     .command("install")
     .description("download browsers (chromium by default); flags such as --with-deps go to Playwright")
     .argument("[browsers...]", "chromium, firefox, webkit or chromium-headless-shell")

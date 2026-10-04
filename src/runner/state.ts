@@ -1,6 +1,6 @@
 import type { ResolvedConfig } from "../config/types.js";
 import type { SuiteNode } from "./tree.js";
-import type { Location, StepCategory, TestInfo } from "./types.js";
+import type { Location, StepCategory, StepResult, TestInfo } from "./types.js";
 
 export interface Collecting {
   file: string;
@@ -14,6 +14,8 @@ export interface RunningTest {
   info: TestInfo;
   config: ResolvedConfig;
   runStep<T>(title: string, category: StepCategory, body: () => T | Promise<T>, location?: Location): Promise<T>;
+  /** Adds a step that has already finished, such as a matcher. */
+  recordStep(step: Omit<StepResult, "depth">): void;
   /** Shared with the AI layer once it exists. */
   extras: Record<string, unknown>;
 }

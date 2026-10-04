@@ -46,7 +46,7 @@ describe("the basic project", () => {
     expect(out).toContain("-  e2e/skip.e2e.ts:9 › skips itself at runtime");
 
     expect(out).toContain('Expected: "Not the about page"');
-    expect(out).toContain("at e2e/about.e2e.ts:13:");
+    expect(out).toContain("e2e/about.e2e.ts:13:50");
     expect(out).toContain("Test timeout of 1000ms exceeded.");
     expect(out).toMatch(/3 passed\n {2}2 failed\n.*\n.*\n {2}1 flaky\n.*\n {2}3 skipped\n/);
     expect(run.code).toBe(1);

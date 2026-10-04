@@ -12,6 +12,8 @@
     "noEmit": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact",
     "forceConsistentCasingInFileNames": true
   },
   "include": ["src", "tsdown.config.ts", "vitest.config.ts"]

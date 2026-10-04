@@ -1,10 +1,15 @@
+import { existsSync, readdirSync, rmSync } from "node:fs";
+import path from "node:path";
 import { loadConfig } from "../config/load-config.js";
 import type { ConfigOverrides, ResolvedConfig } from "../config/types.js";
 import { plural, testLabel } from "../reporters/format.js";
+import { HtmlReporter, type HtmlReporterOptions } from "../reporters/html/index.js";
+import { JsonReporter, type JsonReporterOptions } from "../reporters/json.js";
+import { JunitReporter, type JunitReporterOptions } from "../reporters/junit.js";
 import { TerminalReporter } from "../reporters/terminal.js";
 import type { Counts, Outcome, Reporter, RunSummary, TestCase } from "../reporters/types.js";
 import { collectFile } from "./collect-file.js";
-import { selectTests, writeLastRun, type SelectionOptions } from "./select.js";
+import { LAST_RUN_FILE, selectTests, writeLastRun, type SelectionOptions } from "./select.js";
 import { ancestors } from "./tree.js";
 import { discoverTestFiles } from "./discover.js";
 import { importModule } from "./loader.js";
@@ -101,8 +106,28 @@ export async function collectTests(config: ResolvedConfig): Promise<{ tests: Tes
   return { tests, errors };
 }
 
-function createReporters(_config: ResolvedConfig): Reporter[] {
-  return [new TerminalReporter()];
+function createReporters(config: ResolvedConfig): Reporter[] {
+  return config.reporters.map(([name, options]) => {
+    switch (name) {
+      case "terminal":
+        return new TerminalReporter();
+      case "html":
+        return new HtmlReporter(options as HtmlReporterOptions);
+      case "json":
+        return new JsonReporter(options as JsonReporterOptions);
+      case "junit":
+        return new JunitReporter(options as JunitReporterOptions);
+    }
+  });
+}
+
+/** Clears the previous run's artifacts, but only from a folder inside the project. */
+function clearOutputDir(config: ResolvedConfig): void {
+  if (!config.outputDir.startsWith(config.rootDir + path.sep)) return;
+  for (const entry of existsSync(config.outputDir) ? readdirSync(config.outputDir) : []) {
+    if (entry === LAST_RUN_FILE) continue;
+    rmSync(path.join(config.outputDir, entry), { recursive: true, force: true });
+  }
 }
 
 function emit(reporters: Reporter[], call: (reporter: Reporter) => void): void {
@@ -123,6 +148,7 @@ async function execute(
   options: RunOptions,
 ): Promise<number> {
   const startTime = Date.now();
+  clearOutputDir(config);
   const runnable = tests.filter((test) => !test.skipped);
   const jobs = jobsFor(runnable);
   const workers = Math.max(1, Math.min(config.workers, jobs.length));

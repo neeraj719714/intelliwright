@@ -58,6 +58,8 @@ export interface AttemptResult {
   steps: StepResult[];
   annotations: Annotation[];
   attachments: Attachment[];
+  /** The attempt's folder, when it saved any files. */
+  outputDir?: string;
 }
 
 export interface TestInfo {
@@ -79,6 +81,8 @@ export interface TestInfo {
   readonly signal: AbortSignal;
   /** Milliseconds for this test. */
   readonly timeout: number;
+  /** Set once the test body and hooks finish, so fixture teardown can tell how it went. */
+  readonly status: TestStatus | undefined;
   setTimeout(timeout: number): void;
   /** Skips the rest of the test when `condition` is true or omitted. */
   skip(condition?: boolean, description?: string): void;

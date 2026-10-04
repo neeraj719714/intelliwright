@@ -3,7 +3,7 @@ import { logWorker } from "./support";
 
 test.beforeEach(({}, testInfo) => logWorker(testInfo));
 
-test.describe("home page", () => {
+test.describe("home page", { tag: "@smoke" }, () => {
   test("shows the welcome heading", async ({ page }) => {
     await page.goto("/");
     expect(await page.title()).toBe("Fixture Home");

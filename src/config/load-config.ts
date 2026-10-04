@@ -98,7 +98,7 @@ export function resolveConfig(
     testIdAttribute: user.testIdAttribute ?? "data-testid",
     ai: user.ai ?? {},
     suites: user.suites ?? {},
-    reporters: resolveReporters(overrides.reporters ?? user.reporters ?? ["terminal"]),
+    reporters: resolveReporters(overrides.reporters ?? user.reporters ?? ["terminal", "html"]),
     reportOpen: user.report?.open ?? "on-failure",
     updateCache: overrides.updateCache ?? false,
   };

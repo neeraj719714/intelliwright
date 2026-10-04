@@ -4,7 +4,7 @@ import path from "node:path";
 import type { ResolvedConfig } from "../config/types.js";
 import { SkipSignal } from "./collect.js";
 import type { TestNode } from "./tree.js";
-import type { Annotation, Attachment, TestInfo } from "./types.js";
+import type { Annotation, Attachment, TestInfo, TestStatus } from "./types.js";
 
 export class TestTimeoutError extends Error {
   override readonly name: string = "TestTimeoutError";
@@ -54,6 +54,7 @@ export class TestInfoImpl implements TestInfo {
   readonly outputDir: string;
   readonly annotations: Annotation[];
   readonly attachments: Attachment[] = [];
+  status: TestStatus | undefined = undefined;
   /** Called when `setTimeout` changes the deadline. */
   onTimeoutChange: (() => void) | undefined;
   readonly #controller = new AbortController();

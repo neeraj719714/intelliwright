@@ -1,4 +1,6 @@
+import { existsSync } from "node:fs";
 import { chromium, firefox, selectors, webkit, type Browser, type BrowserContext } from "playwright-core";
+import { ArtifactRecorder, finishArtifacts } from "./artifacts.js";
 import { loadConfig } from "../config/load-config.js";
 import type { ResolvedConfig, UseOptions } from "../config/types.js";
 import { SkipSignal } from "./collect.js";
@@ -61,6 +63,12 @@ class StepRecorder {
   #depth = 0;
 
   constructor(private readonly onEnd: (step: StepResult) => void) {}
+
+  record = (step: Omit<StepResult, "depth">): void => {
+    const recorded = { ...step, depth: this.#depth };
+    this.steps.push(recorded);
+    this.onEnd(recorded);
+  };
 
   run = async <T>(title: string, category: StepCategory, body: () => T | Promise<T>, location?: Location): Promise<T> => {
     const step: StepResult = { title, category, startTime: Date.now(), duration: 0, depth: this.#depth, location };
@@ -235,7 +243,7 @@ export class WorkerRunner {
     const errors: unknown[] = [];
     this.#attemptErrors = errors;
     const steps = new StepRecorder((step) => this.#send({ type: "stepEnd", testId: test.id, retry, step }));
-    const running: RunningTest = { info, config: this.config, runStep: steps.run, extras: {} };
+    const running: RunningTest = { info, config: this.config, runStep: steps.run, recordStep: steps.record, extras: {} };
     shared().running = running;
 
     const scope = new FixtureScope(this.#builtins(test), test.layers, info);
@@ -285,6 +293,8 @@ export class WorkerRunner {
       }
     }
     deadline.stop();
+    if (errors.length > 0 && status === "passed") status = "failed";
+    info.status = status;
 
     try {
       const teardownErrors = await withTimeout(scope.teardown(), TEARDOWN_TIMEOUT_MS, "Fixture teardown");
@@ -306,6 +316,7 @@ export class WorkerRunner {
       steps: steps.steps,
       annotations: info.annotations,
       attachments: info.attachments,
+      outputDir: existsSync(info.outputDir) ? info.outputDir : undefined,
     };
   }
 
@@ -323,12 +334,19 @@ export class WorkerRunner {
       context: {
         name: "context",
         deps: ["browser"],
-        fn: async ({ browser }: { browser: Browser }, provide: (value: BrowserContext) => Promise<void>) => {
+        fn: async (
+          { browser }: { browser: Browser },
+          provide: (value: BrowserContext) => Promise<void>,
+          info: TestInfoImpl,
+        ) => {
           const { actionTimeout, navigationTimeout, ...options } = testUse;
           const context = await browser.newContext({ ...options, baseURL: config.baseURL });
           context.setDefaultTimeout(actionTimeout ?? 0);
           context.setDefaultNavigationTimeout(navigationTimeout ?? 0);
+          const recorder = new ArtifactRecorder(context);
+          await context.tracing.start({ screenshots: true, snapshots: true, sources: true, title: info.titlePath.join(" › ") });
           await provide(context);
+          await finishArtifacts(context, recorder, info);
           await context.close();
         },
       },

@@ -1,7 +1,26 @@
+import type { UsageTotals } from "../ai/usage.js";
 import type { ResolvedConfig } from "../config/types.js";
 import type { Annotation, AttemptResult, SerializedError, StepResult } from "../runner/types.js";
 
+/** Jev usage for the whole run. */
+export interface AiRunSummary {
+  provider: string;
+  usage: UsageTotals;
+}
+
 export type Outcome = "passed" | "failed" | "flaky" | "skipped";
+
+/** Why a test failed, from rules or from Jev. */
+export interface TriageResult {
+  /** `regression`, `test_bug`, `flaky` or `environment`. */
+  label: string;
+  /** How sure Jev was, when Jev chose the label. */
+  probability?: number;
+  /** Jev's severity score, from 0 (cosmetic) to 3 (blocking). */
+  severity?: number;
+  /** How the label was decided, or why triage was skipped. */
+  note?: string;
+}
 
 /** A test as the main process sees it, with every attempt's result. */
 export interface TestCase {
@@ -24,6 +43,7 @@ export interface TestCase {
   results: AttemptResult[];
   /** Set once the test's last attempt has ended. */
   outcome: Outcome | undefined;
+  triage?: TriageResult;
 }
 
 export interface Counts {
@@ -48,6 +68,7 @@ export interface RunSummary {
   /** Errors outside tests, such as a test file that failed to load. */
   errors: SerializedError[];
   counts: Counts;
+  ai?: AiRunSummary;
 }
 
 export interface Reporter {

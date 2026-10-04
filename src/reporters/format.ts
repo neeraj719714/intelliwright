@@ -13,6 +13,11 @@ export function testLabel(test: TestCase): string {
   return `${test.relFile}:${test.line} › ${test.titlePath.join(" › ")}`;
 }
 
+export function formatCost(usd: number): string {
+  if (usd === 0) return "$0";
+  return usd < 0.01 ? `$${usd.toFixed(6)}` : `$${usd.toFixed(4)}`;
+}
+
 export function plural(count: number, word: string): string {
   return `${count} ${word}${count === 1 ? "" : "s"}`;
 }
