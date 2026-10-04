@@ -16,7 +16,7 @@ export {
   type TimeoutOptions,
   type ViewportOptions,
 } from "./expect/index.js";
-export type { Ai, EvaluateQuestionsOptions } from "./ai/fixture.js";
+export type { ActionOptions, Ai, CheckOptions, EvaluateQuestionsOptions } from "./ai/fixture.js";
 export type { AiDecision } from "./ai/runtime.js";
 export {
   test,

@@ -1,4 +1,5 @@
 import type { Locator, Page } from "playwright-core";
+import type { LocatorCache } from "./cache.js";
 import { JevError } from "./errors.js";
 import { capturePageState, type CapturedState } from "./page-state.js";
 import type { Jev } from "./providers/resolve.js";
@@ -38,8 +39,12 @@ export interface AiRuntimeOptions {
   jev: () => Jev | undefined;
   signal: AbortSignal;
   step: <T>(title: string, body: () => Promise<T>) => Promise<T>;
-  /** Folder of the consumer project, for the locator cache. */
-  rootDir: string;
+  /** Adds a finished, zero-length step, such as "used the cached locator". */
+  note: (title: string) => void;
+  /** Undefined when `ai.cache` is off. */
+  cache: LocatorCache | undefined;
+  testIdAttribute: string;
+  baseURL: string | undefined;
 }
 
 /** What AI features share within one test attempt. */
@@ -47,16 +52,26 @@ export class AiRuntime {
   readonly settings: AiRuntimeSettings;
   readonly decisions: AiDecision[] = [];
   readonly signal: AbortSignal;
-  readonly rootDir: string;
+  readonly cache: LocatorCache | undefined;
+  readonly testIdAttribute: string;
+  readonly baseURL: string | undefined;
   readonly #jev: () => Jev | undefined;
   readonly #step: <T>(title: string, body: () => Promise<T>) => Promise<T>;
+  readonly #note: (title: string) => void;
 
   constructor(options: AiRuntimeOptions) {
     this.settings = options.settings;
     this.signal = options.signal;
-    this.rootDir = options.rootDir;
+    this.cache = options.cache;
+    this.testIdAttribute = options.testIdAttribute;
+    this.baseURL = options.baseURL;
     this.#jev = options.jev;
     this.#step = options.step;
+    this.#note = options.note;
+  }
+
+  note(title: string): void {
+    this.#note(title);
   }
 
   jev(): Jev {

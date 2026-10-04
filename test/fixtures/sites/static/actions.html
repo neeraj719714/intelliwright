@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Actions</title>
+  </head>
+  <body>
+    <header>
+      <nav aria-label="Main">
+        <a href="/">Home</a>
+        <a href="/about.html">About</a>
+      </nav>
+      <button id="sign-in" type="button">Sign in</button>
+    </header>
+    <main>
+      <h1>Newsletter</h1>
+      <form id="newsletter" aria-label="Newsletter">
+        <label>Email address <input id="email" type="email" name="email" /></label>
+        <label
+          >Plan
+          <select id="plan" name="plan">
+            <option value="free">Free</option>
+            <option value="pro">Pro</option>
+            <option value="team">Team</option>
+          </select>
+        </label>
+        <label><input id="terms" type="checkbox" /> I agree to the terms</label>
+        <button id="submit" type="submit">Subscribe</button>
+      </form>
+      <button id="more" type="button">More options</button>
+      <p id="log" role="status"></p>
+    </main>
+    <script>
+      const byId = (id) => document.getElementById(id);
+      const log = (text) => (byId("log").textContent = text);
+      const label = new URLSearchParams(location.search).get("label");
+      if (label) byId("submit").textContent = label;
+      byId("sign-in").addEventListener("click", () => log("clicked sign in"));
+      byId("more").addEventListener("mouseenter", () => log("hovered more"));
+      byId("newsletter").addEventListener("submit", (event) => {
+        event.preventDefault();
+        const terms = byId("terms").checked ? "with terms" : "without terms";
+        log(`subscribed ${byId("email").value} to ${byId("plan").value} ${terms}`);
+      });
+    </script>
+  </body>
+</html>

@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { chromium, firefox, selectors, webkit, type Browser, type BrowserContext, type Page } from "playwright-core";
+import { LocatorCache } from "../ai/cache.js";
 import { createAi } from "../ai/fixture.js";
 import { resolveJev, type Jev } from "../ai/providers/resolve.js";
 import { AiRuntime } from "../ai/runtime.js";
@@ -129,6 +130,13 @@ export class WorkerRunner {
   #browser: Promise<Browser> | undefined;
   #attemptErrors: unknown[] | undefined;
   #jevState: { jev?: Jev; error?: unknown } | undefined;
+  #cache: LocatorCache | undefined;
+
+  #locatorCache(): LocatorCache | undefined {
+    if (this.config.ai.cache === false) return undefined;
+    this.#cache ??= new LocatorCache(this.config.rootDir);
+    return this.#cache;
+  }
 
   private constructor(config: ResolvedConfig, workerIndex: number, send: (message: WorkerMessage) => void) {
     this.config = config;
@@ -271,7 +279,10 @@ export class WorkerRunner {
       jev: () => this.jev(),
       signal: info.signal,
       step: (title, body) => steps.run(title, "ai", body),
-      rootDir: this.config.rootDir,
+      note: (title) => steps.record({ title, category: "ai", startTime: Date.now(), duration: 0 }),
+      cache: this.#locatorCache(),
+      testIdAttribute: this.config.testIdAttribute,
+      baseURL: this.config.baseURL,
     });
     const usageBefore = this.#jevState?.jev?.usage.totals() ?? emptyUsage();
     const running: RunningTest = { info, config: this.config, runStep: steps.run, recordStep: steps.record, ai };
@@ -337,6 +348,11 @@ export class WorkerRunner {
     if (errors.length > 0 && status === "passed") status = "failed";
     shared().running = undefined;
     this.#attemptErrors = undefined;
+    try {
+      this.#cache?.flush();
+    } catch (error) {
+      process.stderr.write(`Couldn't save the locator cache: ${(error as Error).message}\n`);
+    }
     const jev = this.#jevState?.jev;
     const usage = jev ? subtractUsage(jev.usage.totals(), usageBefore) : emptyUsage();
     return {
