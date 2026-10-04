@@ -77,7 +77,8 @@ export function createProgram(entry: string): Command {
     .description("set up Intelliwright in this project: config, e2e/ page objects and an example test")
     .option("--provider <name>", "Jev provider: typesafe, vercel, openrouter, cloudflare or auto")
     .option("-y, --yes", "don't ask questions; use the defaults")
-    .action(async (options: { provider?: string; yes?: boolean }) => {
+    .option("--no-skill", "don't install the agent skill into .cursor/skills and .claude/skills")
+    .action(async (options: { provider?: string; yes?: boolean; skill: boolean }) => {
       const { init } = await import("./init.js");
       process.exitCode = await init({ cwd: process.cwd(), ...options });
     });

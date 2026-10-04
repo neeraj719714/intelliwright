@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { createInterface } from "node:readline/promises";
+import { fileURLToPath } from "node:url";
 import colors from "picocolors";
 
 export type PackageManager = "npm" | "pnpm" | "yarn" | "bun";
@@ -18,8 +19,11 @@ export interface InitOptions {
   cwd: string;
   provider?: string;
   yes?: boolean;
+  /** Install the agent skill for Cursor and Claude Code. Defaults to true. */
   skill?: boolean;
 }
+
+const SKILL_DIRS = [".cursor/skills/intelliwright", ".claude/skills/intelliwright"];
 
 const PROVIDERS: Record<Provider, { label: string; keys: string }> = {
   typesafe: { label: "TypeSafe", keys: "TYPESAFE_API_KEY" },
@@ -138,6 +142,7 @@ export async function init(options: InitOptions): Promise<number> {
     created.push(file);
   }
   const gitignoreChanged = updateGitignore(root);
+  const skillDirs = options.skill === false ? [] : installSkill(root);
 
   const out = (text = ""): void => {
     process.stdout.write(`${text}\n`);
@@ -146,6 +151,9 @@ export async function init(options: InitOptions): Promise<number> {
   if (created.length) out(`${colors.green("Created")}\n${created.map((file) => `  ${file}`).join("\n")}`);
   if (kept.length) out(`${colors.yellow("Kept the existing")}\n${kept.map((file) => `  ${file}`).join("\n")}`);
   if (gitignoreChanged) out(`${colors.green("Updated")} .gitignore`);
+  if (skillDirs.length) {
+    out(`${colors.green("Installed")} the agent skill for writing these tests\n${skillDirs.map((dir) => `  ${dir}/`).join("\n")}`);
+  }
   out();
   out("Next steps:");
   out(`  1. ${cmd.add}`);
@@ -164,6 +172,17 @@ export async function init(options: InitOptions): Promise<number> {
   }
   out();
   return 0;
+}
+
+/** Copies the package's skill files, replacing older copies so they match the installed version. */
+function installSkill(root: string): string[] {
+  const source = fileURLToPath(new URL("../skills/intelliwright/", import.meta.url));
+  if (!existsSync(path.join(source, "SKILL.md"))) {
+    process.stderr.write(`Skipped the agent skill: ${source} is missing.\n`);
+    return [];
+  }
+  for (const dir of SKILL_DIRS) cpSync(source, path.join(root, dir), { recursive: true });
+  return SKILL_DIRS;
 }
 
 function updateGitignore(root: string): boolean {

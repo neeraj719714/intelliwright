@@ -6,7 +6,7 @@ import path from "node:path";
 import { ESLint } from "eslint";
 import reactHooks from "eslint-plugin-react-hooks";
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
-import { freePort, isUp, linkIntelliwright, projectsDir, runCli } from "../helpers/cli.js";
+import { freePort, isUp, linkIntelliwright, projectsDir, repoRoot, runCli } from "../helpers/cli.js";
 
 const scratch = mkdtempSync(path.join(tmpdir(), "intelliwright-init-"));
 let server: ChildProcess;
@@ -75,12 +75,32 @@ describe.each([
     expect(readFileSync(path.join(project, ".gitignore"), "utf8")).toBe(gitignore);
   });
 
+  test("installs the agent skill for Cursor and Claude Code", () => {
+    const source = readFileSync(path.join(repoRoot, "skills", "intelliwright", "SKILL.md"), "utf8");
+    for (const dir of [".cursor/skills/intelliwright", ".claude/skills/intelliwright"]) {
+      expect(readFileSync(path.join(project, dir, "SKILL.md"), "utf8")).toBe(source);
+      expect(existsSync(path.join(project, dir, "page-objects.md"))).toBe(true);
+      expect(existsSync(path.join(project, dir, "flakiness.md"))).toBe(true);
+    }
+    expect(output).toContain(".cursor/skills/intelliwright/");
+  });
+
   test("the example test passes", async () => {
     const run = await runCli(["test", "--base-url", siteURL, "--reporter", "terminal"], { cwd: project });
     expect(run.stdout).toContain(`✓  e2e/home.e2e.${ext}:4 › home page › shows its main heading`);
     expect(run.stdout).toContain("1 passed");
     expect(run.code).toBe(0);
   });
+});
+
+test("--no-skill leaves out the agent skill", async () => {
+  const target = path.join(scratch, "no-skill");
+  cpSync(path.join(projectsDir, "init-empty"), target, { recursive: true });
+  const run = await runCli(["init", "--yes", "--no-skill"], { cwd: target });
+  expect(run.code).toBe(0);
+  expect(existsSync(path.join(target, "e2e", "home.e2e.mjs"))).toBe(true);
+  expect(existsSync(path.join(target, ".cursor"))).toBe(false);
+  expect(existsSync(path.join(target, ".claude"))).toBe(false);
 });
 
 describe("the generated fixture file and React's hooks lint rule", () => {
