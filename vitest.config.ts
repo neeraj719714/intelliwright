@@ -30,6 +30,15 @@ const config: ViteUserConfig = defineConfig({
           testTimeout: 60_000,
         },
       },
+      {
+        extends: true,
+        test: {
+          name: "pack",
+          include: ["test/pack/**/*.test.ts"],
+          testTimeout: 60_000,
+          hookTimeout: 300_000,
+        },
+      },
     ],
   },
 });
