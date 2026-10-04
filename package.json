@@ -35,5 +35,13 @@
     "./ai-sdk": "./dist/ai-sdk.js",
     "./testing": "./dist/testing.js",
     "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "commander": "^14.0.3",
+    "expect": "^30.5.2",
+    "jiti": "^2.7.0",
+    "picocolors": "^1.1.1",
+    "playwright-core": "^1.63.0",
+    "tinyglobby": "^0.2.17"
   }
 }

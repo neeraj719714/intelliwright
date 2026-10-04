@@ -1,0 +1,36 @@
+import type { ResolvedConfig } from "../config/types.js";
+import type { SuiteNode } from "./tree.js";
+import type { Location, StepCategory, TestInfo } from "./types.js";
+
+export interface Collecting {
+  file: string;
+  root: SuiteNode;
+  /** The describe blocks being collected, innermost last. */
+  stack: SuiteNode[];
+}
+
+/** What matchers, steps and AI features need from the test that is running. */
+export interface RunningTest {
+  info: TestInfo;
+  config: ResolvedConfig;
+  runStep<T>(title: string, category: StepCategory, body: () => T | Promise<T>, location?: Location): Promise<T>;
+  /** Shared with the AI layer once it exists. */
+  extras: Record<string, unknown>;
+}
+
+export interface SharedState {
+  collecting?: Collecting;
+  running?: RunningTest;
+}
+
+const KEY = Symbol.for("intelliwright");
+
+/**
+ * State lives on `globalThis`, so test files and the runner share it even if
+ * jiti loads a second copy of the package.
+ */
+export function shared(): SharedState {
+  const store = globalThis as { [KEY]?: SharedState };
+  store[KEY] ??= {};
+  return store[KEY];
+}
