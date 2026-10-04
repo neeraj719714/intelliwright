@@ -1,5 +1,6 @@
 import type {ReactNode} from 'react';
 import Link from '@docusaurus/Link';
+import useBaseUrl from '@docusaurus/useBaseUrl';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import CodeBlock from '@theme/CodeBlock';
 import Heading from '@theme/Heading';
@@ -89,9 +90,15 @@ const FEATURES: Feature[] = [
 
 function Hero(): ReactNode {
   const {siteConfig} = useDocusaurusContext();
+  const animatedLogo = useBaseUrl('/img/logo-animated.svg');
+  const staticLogo = useBaseUrl('/img/logo.svg');
   return (
     <header className={styles.hero}>
       <div className="container">
+        <picture>
+          <source srcSet={staticLogo} media="(prefers-reduced-motion: reduce)" />
+          <img className={styles.logo} src={animatedLogo} alt="" width={120} height={120} />
+        </picture>
         <Heading as="h1" className={styles.title}>
           {siteConfig.title}
         </Heading>
