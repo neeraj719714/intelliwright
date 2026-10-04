@@ -1,8 +1,11 @@
 import { loadConfig } from "../config/load-config.js";
 import type { ConfigOverrides, ResolvedConfig } from "../config/types.js";
+import { plural, testLabel } from "../reporters/format.js";
 import { TerminalReporter } from "../reporters/terminal.js";
 import type { Counts, Outcome, Reporter, RunSummary, TestCase } from "../reporters/types.js";
 import { collectFile } from "./collect-file.js";
+import { selectTests, writeLastRun, type SelectionOptions } from "./select.js";
+import { ancestors } from "./tree.js";
 import { discoverTestFiles } from "./discover.js";
 import { importModule } from "./loader.js";
 import { serializeError } from "./location.js";
@@ -15,6 +18,9 @@ export interface RunOptions {
   cwd: string;
   configFile?: string;
   overrides: ConfigOverrides;
+  selection?: SelectionOptions;
+  /** Print the selected tests instead of running them. */
+  list?: boolean;
   /** The CLI entry file, forked for each worker. */
   workerEntry: string;
 }
@@ -23,16 +29,43 @@ export interface RunOptions {
 export async function runTests(options: RunOptions): Promise<number> {
   process.setSourceMapsEnabled(true);
   const config = await loadConfig({ cwd: options.cwd, configFile: options.configFile, overrides: options.overrides });
-  const reporters = createReporters(config);
   const { tests, errors } = await collectTests(config);
-  const selected = focusOnly(tests);
+  const { tests: selected, note } = selectTests(tests, options.selection ?? {}, {
+    cwd: options.cwd,
+    suites: config.suites,
+    outputDir: config.outputDir,
+  });
 
+  if (options.list) return printList(selected, errors, note);
+
+  const reporters = createReporters(config);
   if (selected.length === 0) {
     for (const error of errors) emit(reporters, (reporter) => reporter.onError?.(error));
-    process.stderr.write(errors.length > 0 ? "" : `No tests found in ${config.testDir}\n`);
+    if (note && errors.length === 0) {
+      process.stdout.write(`${note}\n`);
+      return 0;
+    }
+    if (errors.length === 0) {
+      process.stderr.write(tests.length === 0 ? `No tests found in ${config.testDir}\n` : "No tests match the filters.\n");
+    }
     return 1;
   }
   return execute(config, selected, errors, reporters, options);
+}
+
+function printList(tests: TestCase[], errors: SerializedError[], note: string | undefined): number {
+  for (const error of errors) process.stderr.write(`Error: ${error.message}\n`);
+  const lines = tests.map((test) => {
+    const label = testLabel(test);
+    const extraTags = test.tags.filter((tag) => !test.titlePath.some((title) => title.includes(tag)));
+    return `  ${label}${extraTags.length ? ` ${extraTags.join(" ")}` : ""}`;
+  });
+  const files = new Set(tests.map((test) => test.file)).size;
+  process.stdout.write(
+    `Listing tests:\n${lines.join("\n")}${lines.length ? "\n" : ""}Total: ${plural(tests.length, "test")} in ${plural(files, "file")}\n`,
+  );
+  if (note) process.stdout.write(`${note}\n`);
+  return errors.length > 0 ? 1 : 0;
 }
 
 export async function collectTests(config: ResolvedConfig): Promise<{ tests: TestCase[]; errors: SerializedError[] }> {
@@ -50,6 +83,7 @@ export async function collectTests(config: ResolvedConfig): Promise<{ tests: Tes
           relFile: collected.relFile,
           line: node.location.line,
           column: node.location.column,
+          describeLines: ancestors(node).flatMap((suite) => (suite.location ? [suite.location.line] : [])),
           tags: node.tags,
           skipped: node.skipped,
           skipReason: node.skipReason,
@@ -65,12 +99,6 @@ export async function collectTests(config: ResolvedConfig): Promise<{ tests: Tes
     }
   }
   return { tests, errors };
-}
-
-/** With `.only` anywhere, only those tests run. */
-function focusOnly(tests: TestCase[]): TestCase[] {
-  const focused = tests.filter((test) => test.only);
-  return focused.length > 0 ? focused : tests;
 }
 
 function createReporters(_config: ResolvedConfig): Reporter[] {
@@ -202,6 +230,14 @@ async function execute(
       ? "failed"
       : "passed";
   const summary: RunSummary = { status, startTime, duration: Date.now() - startTime, tests, errors, counts };
+  try {
+    writeLastRun(config.outputDir, {
+      status,
+      failedTests: tests.filter((test) => test.outcome === "failed").map((test) => test.id),
+    });
+  } catch (error) {
+    process.stderr.write(`Couldn't save the run state: ${(error as Error).message}\n`);
+  }
   for (const reporter of reporters) {
     try {
       await reporter.onEnd?.(summary);

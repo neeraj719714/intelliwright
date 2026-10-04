@@ -6,6 +6,12 @@ import { VERSION } from "../version.js";
 
 interface TestCommandOptions {
   config?: string;
+  tag?: string;
+  grep?: string;
+  grepInvert?: string;
+  suite?: string;
+  list?: boolean;
+  lastFailed?: boolean;
   headed?: boolean;
   workers?: number;
   retries?: number;
@@ -24,8 +30,14 @@ export function createProgram(entry: string): Command {
   program
     .command("test")
     .description("run tests")
-    .argument("[filters...]", "test files or folders to run")
+    .argument("[filters...]", "test files or folders to run; add :line to run the test or describe on that line")
     .option("-c, --config <file>", "config file to use")
+    .option("-t, --tag <expression>", 'run tests whose tags match, such as "@smoke and not @slow"')
+    .option("-g, --grep <regex>", "run tests whose titles match")
+    .option("--grep-invert <regex>", "skip tests whose titles match")
+    .option("-s, --suite <name>", "run a named suite from the config")
+    .option("--list", "list the matching tests without running them")
+    .option("--last-failed", "run only the tests that failed in the previous run")
     .option("--headed", "show the browser while tests run")
     .option("-j, --workers <count>", "number of worker processes", wholeNumber(1))
     .option("--retries <count>", "extra attempts for failing tests", wholeNumber(0))
@@ -33,12 +45,21 @@ export function createProgram(entry: string): Command {
     .option("--reporter <names>", `comma-separated reporters: ${REPORTERS.join(", ")}`, reporterList)
     .option("--base-url <url>", "run against this URL instead of the config's baseURL")
     .option("--update-cache", "resolve every AI action again instead of using cached locators")
-    .action(async (_filters: string[], options: TestCommandOptions) => {
+    .action(async (filters: string[], options: TestCommandOptions) => {
       const { runTests } = await import("../runner/run.js");
       process.exitCode = await runTests({
         cwd: process.cwd(),
         configFile: options.config,
         workerEntry: entry,
+        list: options.list,
+        selection: {
+          filters,
+          tag: options.tag,
+          grep: options.grep,
+          grepInvert: options.grepInvert,
+          suite: options.suite,
+          lastFailed: options.lastFailed,
+        },
         overrides: {
           workers: options.workers,
           retries: options.retries,
@@ -66,7 +87,8 @@ export function createProgram(entry: string): Command {
 
 /** Prints a command's error, without a stack trace for known mistakes such as a bad config. */
 export function reportCliError(error: unknown): number {
-  const known = error instanceof Error && ["ConfigError", "WebServerError", "JevError"].includes(error.name);
+  const known =
+    error instanceof Error && ["ConfigError", "WebServerError", "JevError", "SelectionError"].includes(error.name);
   const text = known ? (error as Error).message : String((error as Error)?.stack ?? error);
   process.stderr.write(`${colors.red("Error:")} ${text}\n`);
   return 1;

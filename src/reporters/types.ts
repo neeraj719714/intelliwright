@@ -13,6 +13,8 @@ export interface TestCase {
   relFile: string;
   line: number;
   column: number;
+  /** Lines of the describe blocks around the test, so `file:line` can pick a whole describe. */
+  describeLines: number[];
   tags: string[];
   skipped: boolean;
   skipReason: string | undefined;
