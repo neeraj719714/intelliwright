@@ -3,7 +3,8 @@ import { fileURLToPath } from "node:url";
 import { expect, test } from "vitest";
 
 const root = fileURLToPath(new URL("../..", import.meta.url));
-const hooks = fileURLToPath(new URL("../helpers/record-imports.mjs", import.meta.url));
+// --import takes a URL; on Windows a bare D:\ path reads as a "d:" scheme.
+const hooks = new URL("../helpers/record-imports.mjs", import.meta.url).href;
 
 test("importing intelliwright and intelliwright/testing never loads the AI SDK", () => {
   const output = execFileSync(

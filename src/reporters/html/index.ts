@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { toPosix } from "../../runner/location.js";
 import { openInBrowser, shouldOpenReport } from "../open.js";
 import type { Reporter, RunInfo, RunSummary } from "../types.js";
 import { buildReportData, type ReportData } from "./data.js";
@@ -38,7 +39,7 @@ export class HtmlReporter implements Reporter {
     const index = path.join(this.#folder, "index.html");
     writeFileSync(index, renderReportHtml(data));
 
-    const shown = path.relative(process.cwd(), index) || index;
+    const shown = toPosix(path.relative(process.cwd(), index)) || index;
     process.stdout.write(`  HTML report: ${shown}. Open it with: npx intelliwright show-report\n\n`);
     if (shouldOpenReport(this.#open, summary.status)) openInBrowser(pathToFileURL(index).href);
   }

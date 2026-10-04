@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { codeFrameColumns } from "@babel/code-frame";
 import { createColors } from "picocolors";
+import { toPosix } from "../runner/location.js";
 import type { AttemptResult, SerializedError } from "../runner/types.js";
 import { formatCost, formatDuration, plural, testLabel } from "./format.js";
 import type { Reporter, RunInfo, RunSummary, TestCase } from "./types.js";
@@ -170,7 +171,7 @@ export class TerminalReporter implements Reporter {
   }
 
   #relative(file: string): string {
-    return path.relative(this.#rootDir, file) || file;
+    return toPosix(path.relative(this.#rootDir, file)) || file;
   }
 }
 

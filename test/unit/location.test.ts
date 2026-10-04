@@ -1,13 +1,17 @@
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { describe, expect, test } from "vitest";
 import { parseStack, userFrame } from "../../src/runner/location.js";
+
+// File URLs need a drive letter on Windows to count as absolute.
+const esmFile = path.resolve("/app/e2e/esm.e2e.mjs");
 
 const stack = [
   "Error: boom",
   "    at /app/e2e/login.e2e.ts:3:25",
   "    at Object.<anonymous> (/app/e2e/pages/login.page.ts:12:7)",
   "    at async LoginPage.submit (/app/e2e/pages/My (Old) Pages/x.ts:4:1)",
-  "    at file:///app/e2e/esm.e2e.mjs:8:2",
+  `    at ${pathToFileURL(esmFile).href}:8:2`,
   "    at new Promise (<anonymous>)",
   "    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)",
   "    at run (/app/node_modules/intelliwright/dist/worker.js:200:3)",
@@ -19,7 +23,7 @@ describe("parseStack", () => {
       { file: path.normalize("/app/e2e/login.e2e.ts"), line: 3, column: 25 },
       { file: path.normalize("/app/e2e/pages/login.page.ts"), line: 12, column: 7 },
       { file: path.normalize("/app/e2e/pages/My (Old) Pages/x.ts"), line: 4, column: 1 },
-      { file: path.normalize("/app/e2e/esm.e2e.mjs"), line: 8, column: 2 },
+      { file: esmFile, line: 8, column: 2 },
       { file: path.normalize("/app/node_modules/intelliwright/dist/worker.js"), line: 200, column: 3 },
     ]);
   });
