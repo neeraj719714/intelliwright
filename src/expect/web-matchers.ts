@@ -20,7 +20,7 @@ export interface ViewportOptions extends TimeoutOptions {
   ratio?: number;
 }
 
-type MatcherResult = { pass: boolean; message(): string };
+export type MatcherResult = { pass: boolean; message(): string };
 
 interface Probe<T> {
   pass: boolean;
@@ -57,8 +57,13 @@ export async function poll<T>(timeout: number, isNot: boolean, probe: () => Prom
   }
 }
 
-/** Runs a matcher and records it as an `expect` step of the running test. */
-export async function asStep(context: MatcherContext, title: string, run: () => Promise<MatcherResult>): Promise<MatcherResult> {
+/** Runs a matcher and records it as a step of the running test. */
+export async function asStep(
+  context: MatcherContext,
+  title: string,
+  run: () => Promise<MatcherResult>,
+  category: "expect" | "ai" = "expect",
+): Promise<MatcherResult> {
   const running = shared().running;
   const startTime = Date.now();
   const location = running ? userFrame(new Error().stack, running.config.rootDir) : undefined;
@@ -66,7 +71,7 @@ export async function asStep(context: MatcherContext, title: string, run: () => 
   const failed = result.pass === Boolean(context.isNot);
   running?.recordStep({
     title: `expect${context.isNot ? ".not" : ""}.${title}`,
-    category: "expect",
+    category,
     startTime,
     duration: Date.now() - startTime,
     location,

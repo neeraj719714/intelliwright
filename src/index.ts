@@ -8,7 +8,16 @@ export type {
   UseOptions,
   WebServerConfig,
 } from "./config/types.js";
-export { expect, type TextOptions, type TimeoutOptions, type ViewportOptions } from "./expect/index.js";
+export {
+  expect,
+  type AiMatcherOptions,
+  type ScoreMatcherOptions,
+  type TextOptions,
+  type TimeoutOptions,
+  type ViewportOptions,
+} from "./expect/index.js";
+export type { Ai, EvaluateQuestionsOptions } from "./ai/fixture.js";
+export type { AiDecision } from "./ai/runtime.js";
 export {
   test,
   type DescribeFunction,

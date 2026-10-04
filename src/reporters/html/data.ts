@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { toPosix } from "../../runner/location.js";
-import type { Annotation, SerializedError, StepResult } from "../../runner/types.js";
+import type { Annotation, AttemptAi, SerializedError, StepResult } from "../../runner/types.js";
 import { VERSION } from "../../version.js";
 import { stripAnsi } from "../format.js";
 import type { AiRunSummary, Counts, Outcome, RunSummary, TriageResult } from "../types.js";
@@ -25,6 +25,7 @@ export interface ReportAttempt {
   steps: StepResult[];
   annotations: Annotation[];
   attachments: ReportAttachment[];
+  ai?: AttemptAi;
 }
 
 export interface ReportTest {
@@ -107,6 +108,7 @@ export function buildReportData(summary: RunSummary, folder: string, rootDir: st
         errors: result.errors.map(clean),
         steps: result.steps.map((step) => (step.error ? { ...step, error: clean(step.error) } : step)),
         annotations: result.annotations,
+        ai: result.ai,
         attachments: result.attachments.map((attachment) => {
           const entry: ReportAttachment = { name: attachment.name, contentType: attachment.contentType, body: attachment.body };
           if (attachment.path) {

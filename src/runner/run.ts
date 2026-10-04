@@ -7,7 +7,8 @@ import { HtmlReporter, type HtmlReporterOptions } from "../reporters/html/index.
 import { JsonReporter, type JsonReporterOptions } from "../reporters/json.js";
 import { JunitReporter, type JunitReporterOptions } from "../reporters/junit.js";
 import { TerminalReporter } from "../reporters/terminal.js";
-import type { Counts, Outcome, Reporter, RunSummary, TestCase } from "../reporters/types.js";
+import type { AiRunSummary, Counts, Outcome, Reporter, RunSummary, TestCase } from "../reporters/types.js";
+import { addUsage, emptyUsage } from "../ai/usage.js";
 import { collectFile } from "./collect-file.js";
 import { LAST_RUN_FILE, selectTests, writeLastRun, type SelectionOptions } from "./select.js";
 import { ancestors } from "./tree.js";
@@ -255,7 +256,15 @@ async function execute(
     : counts.failed > 0 || errors.length > 0 || tests.some((test) => test.outcome === undefined)
       ? "failed"
       : "passed";
-  const summary: RunSummary = { status, startTime, duration: Date.now() - startTime, tests, errors, counts };
+  const summary: RunSummary = {
+    status,
+    startTime,
+    duration: Date.now() - startTime,
+    tests,
+    errors,
+    counts,
+    ai: aiSummary(tests),
+  };
   try {
     writeLastRun(config.outputDir, {
       status,
@@ -307,6 +316,20 @@ function outcomeOf(test: TestCase): Outcome {
   if (!last || last.status === "skipped") return "skipped";
   if (last.status === "passed") return test.results.length > 1 ? "flaky" : "passed";
   return "failed";
+}
+
+/** Jev usage summed over every attempt that used it. */
+export function aiSummary(tests: TestCase[]): AiRunSummary | undefined {
+  let provider: string | undefined;
+  let usage = emptyUsage();
+  for (const test of tests) {
+    for (const result of test.results) {
+      if (!result.ai) continue;
+      provider ??= result.ai.provider;
+      usage = addUsage(usage, result.ai.usage);
+    }
+  }
+  return provider ? { provider, usage } : undefined;
 }
 
 export function countOutcomes(tests: TestCase[]): Counts {

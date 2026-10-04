@@ -1,5 +1,9 @@
 import { existsSync } from "node:fs";
-import { chromium, firefox, selectors, webkit, type Browser, type BrowserContext } from "playwright-core";
+import { chromium, firefox, selectors, webkit, type Browser, type BrowserContext, type Page } from "playwright-core";
+import { createAi } from "../ai/fixture.js";
+import { resolveJev, type Jev } from "../ai/providers/resolve.js";
+import { AiRuntime } from "../ai/runtime.js";
+import { emptyUsage, subtractUsage } from "../ai/usage.js";
 import { ArtifactRecorder, finishArtifacts } from "./artifacts.js";
 import { loadConfig } from "../config/load-config.js";
 import type { ResolvedConfig, UseOptions } from "../config/types.js";
@@ -124,6 +128,7 @@ export class WorkerRunner {
   readonly #files = new Map<string, CollectedFile>();
   #browser: Promise<Browser> | undefined;
   #attemptErrors: unknown[] | undefined;
+  #jevState: { jev?: Jev; error?: unknown } | undefined;
 
   private constructor(config: ResolvedConfig, workerIndex: number, send: (message: WorkerMessage) => void) {
     this.config = config;
@@ -146,6 +151,19 @@ export class WorkerRunner {
   browser(): Promise<Browser> {
     this.#browser ??= launch(this.config);
     return this.#browser;
+  }
+
+  /** The worker's Jev provider, resolved on first use. Throws if the AI config is invalid. */
+  jev(): Jev | undefined {
+    if (!this.#jevState) {
+      try {
+        this.#jevState = { jev: resolveJev(this.config.ai) };
+      } catch (error) {
+        this.#jevState = { error };
+      }
+    }
+    if (this.#jevState.error) throw this.#jevState.error;
+    return this.#jevState.jev;
   }
 
   async close(): Promise<void> {
@@ -243,10 +261,23 @@ export class WorkerRunner {
     const errors: unknown[] = [];
     this.#attemptErrors = errors;
     const steps = new StepRecorder((step) => this.#send({ type: "stepEnd", testId: test.id, retry, step }));
-    const running: RunningTest = { info, config: this.config, runStep: steps.run, recordStep: steps.record, extras: {} };
+    const ai = new AiRuntime({
+      settings: {
+        minProbability: this.config.ai.minProbability ?? 0.7,
+        cache: this.config.ai.cache ?? true,
+        updateCache: this.config.updateCache,
+        redact: this.config.ai.redact ?? [],
+      },
+      jev: () => this.jev(),
+      signal: info.signal,
+      step: (title, body) => steps.run(title, "ai", body),
+      rootDir: this.config.rootDir,
+    });
+    const usageBefore = this.#jevState?.jev?.usage.totals() ?? emptyUsage();
+    const running: RunningTest = { info, config: this.config, runStep: steps.run, recordStep: steps.record, ai };
     shared().running = running;
 
-    const scope = new FixtureScope(this.#builtins(test), test.layers, info);
+    const scope = new FixtureScope(this.#builtins(test, ai), test.layers, info);
     const suites = ancestors(test);
     const beforeEach = suites.flatMap((suite) => suite.hooks.beforeEach);
     const afterEach = [...suites].reverse().flatMap((suite) => suite.hooks.afterEach);
@@ -306,6 +337,8 @@ export class WorkerRunner {
     if (errors.length > 0 && status === "passed") status = "failed";
     shared().running = undefined;
     this.#attemptErrors = undefined;
+    const jev = this.#jevState?.jev;
+    const usage = jev ? subtractUsage(jev.usage.totals(), usageBefore) : emptyUsage();
     return {
       retry,
       workerIndex: this.#workerIndex,
@@ -317,10 +350,11 @@ export class WorkerRunner {
       annotations: info.annotations,
       attachments: info.attachments,
       outputDir: existsSync(info.outputDir) ? info.outputDir : undefined,
+      ai: jev && (usage.calls > 0 || ai.decisions.length > 0) ? { provider: jev.provider, usage, decisions: ai.decisions } : undefined,
     };
   }
 
-  #builtins(test: TestNode): FixtureLayer {
+  #builtins(test: TestNode, ai: AiRuntime): FixtureLayer {
     const config = this.config;
     const testUse: UseOptions = Object.assign({}, config.use, ...ancestors(test).flatMap((suite) => suite.use));
     return {
@@ -355,6 +389,11 @@ export class WorkerRunner {
         deps: ["context"],
         fn: async ({ context }: { context: BrowserContext }, provide: (value: unknown) => Promise<void>) =>
           provide(await context.newPage()),
+      },
+      ai: {
+        name: "ai",
+        deps: ["page"],
+        fn: async ({ page }: { page: Page }, provide: (value: unknown) => Promise<void>) => provide(createAi(page, ai)),
       },
     };
   }

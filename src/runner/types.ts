@@ -1,4 +1,14 @@
 import type { Browser, BrowserContext, Page } from "playwright-core";
+import type { Ai } from "../ai/fixture.js";
+import type { AiDecision } from "../ai/runtime.js";
+import type { UsageTotals } from "../ai/usage.js";
+
+/** Jev's part in one attempt. */
+export interface AttemptAi {
+  provider: string;
+  usage: UsageTotals;
+  decisions: AiDecision[];
+}
 
 export interface Location {
   file: string;
@@ -60,6 +70,8 @@ export interface AttemptResult {
   attachments: Attachment[];
   /** The attempt's folder, when it saved any files. */
   outputDir?: string;
+  /** Present when the attempt used Jev. */
+  ai?: AttemptAi;
 }
 
 export interface TestInfo {
@@ -103,6 +115,8 @@ export interface TestFixtures {
   context: BrowserContext;
   page: Page;
   baseURL: string | undefined;
+  /** Jev-powered checks and actions on `page`. */
+  ai: Ai;
 }
 
 export type BuiltinFixtures = WorkerFixtures & TestFixtures;

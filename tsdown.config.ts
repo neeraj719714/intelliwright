@@ -26,6 +26,7 @@ const config: UserConfig[] = defineConfig([
     dts: false,
     minify: true,
     clean: false,
+    deps: { onlyBundle: ["preact"] },
   },
 ]);
 

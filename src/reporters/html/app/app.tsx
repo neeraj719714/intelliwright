@@ -266,6 +266,41 @@ function Attempt({ attempt }: { attempt: ReportAttempt }): JSX.Element {
           </ol>
         </section>
       )}
+      {attempt.ai && attempt.ai.decisions.length > 0 && (
+        <section class="block" aria-label="AI decisions">
+          <h3>AI decisions</h3>
+          <table class="decisions">
+            <thead>
+              <tr>
+                <th>Kind</th>
+                <th>Question</th>
+                <th>Answer</th>
+                <th>Probability</th>
+              </tr>
+            </thead>
+            <tbody>
+              {attempt.ai.decisions.map((decision) => (
+                <tr class={decision.passed === false ? "status-failed" : ""}>
+                  <td>{decision.kind}</td>
+                  <td>{decision.question}</td>
+                  <td>
+                    {decision.answer}
+                    {decision.passed !== undefined ? (decision.passed ? " ✓" : " ✘") : ""}
+                  </td>
+                  <td>
+                    {decision.probability !== undefined ? decision.probability.toFixed(2) : "–"}
+                    {decision.confidence !== undefined ? ` (confidence ${decision.confidence.toFixed(2)})` : ""}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div class="meta">
+            {attempt.ai.provider}: {attempt.ai.usage.calls} calls, {attempt.ai.usage.inputTokens.toLocaleString("en-US")} input tokens,{" "}
+            {formatCost(attempt.ai.usage.costUsd)}
+          </div>
+        </section>
+      )}
       {images.length > 0 && (
         <section class="block" aria-label="Screenshots">
           <h3>Screenshots</h3>

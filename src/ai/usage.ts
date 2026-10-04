@@ -26,6 +26,18 @@ export function addUsage(a: UsageTotals, b: UsageTotals): UsageTotals {
   };
 }
 
+/** What happened between two snapshots of the same tracker. */
+export function subtractUsage(after: UsageTotals, before: UsageTotals): UsageTotals {
+  return {
+    calls: after.calls - before.calls,
+    inputTokens: after.inputTokens - before.inputTokens,
+    outputTokens: after.outputTokens - before.outputTokens,
+    costUsd: Math.max(0, after.costUsd - before.costUsd),
+    costEstimated: after.costEstimated,
+    models: after.models,
+  };
+}
+
 /** Counts every request that reached a provider. */
 export class UsageTracker {
   #totals: UsageTotals = emptyUsage();
