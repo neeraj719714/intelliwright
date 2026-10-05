@@ -24,6 +24,16 @@ test("a user can save a note", async ({ page, newNotePage }) => {
 - **Reports:** a terminal summary, a self-contained HTML report with screenshots, traces and every AI decision, and JSON and JUnit files for CI.
 - **A skill for AI coding agents**, so Cursor and Claude Code write tests the same way you do.
 
+## Documentation
+
+The full documentation is on GitHub Pages at [neeraj719714.github.io/intelliwright](https://neeraj719714.github.io/intelliwright/):
+
+- [Getting started](https://neeraj719714.github.io/intelliwright/docs/getting-started/installation): installation and your first test.
+- [Writing tests](https://neeraj719714.github.io/intelliwright/docs/writing-tests/basics): test basics, page objects, fixtures, assertions and signing in.
+- [Jev features](https://neeraj719714.github.io/intelliwright/docs/jev/overview): AI assertions and actions, goal-driven runs, questions, failure triage and providers.
+- [Running tests](https://neeraj719714.github.io/intelliwright/docs/running-tests/selecting-tests): selecting tests, starting your app, reports, CI and flaky tests.
+- [Reference](https://neeraj719714.github.io/intelliwright/docs/reference/configuration): configuration, the command line and the API.
+
 ## Requirements
 
 - Node.js 22 or newer.
@@ -216,7 +226,7 @@ npm run test:live    # real Jev requests; needs a provider key in .env.local
 npm run test:pack    # packs the tarball and installs it in a scratch project
 ```
 
-The documentation site is a Docusaurus project in the `website/` folder. Run `npm install` and `npm start` there to read it locally.
+The documentation site is a Docusaurus project in the `website/` folder. Run `npm install` and `npm start` there to read it locally. Pushing changes under `website/` to `main` publishes it to GitHub Pages through `.github/workflows/docs.yml`, which you can also run by hand from the Actions tab.
 
 ## License
 
