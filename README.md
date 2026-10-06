@@ -16,7 +16,7 @@ test("a user can save a note", async ({ page, newNotePage }) => {
 });
 ```
 
-- **A test runner and command line.** Test files run in parallel worker processes, failing tests can be retried, and you pick tests by file, line, tag, title or named suite.
+- **A test runner and command line.** Test files run in parallel worker processes, failing tests can be retried, and you pick tests by file, line, tag, title or named suite. UI mode runs them from the browser while you watch the results arrive.
 - **An API you may already know.** `test`, `expect`, `test.describe`, hooks and fixtures work like Playwright Test, and the `page` fixture is a Playwright `Page`.
 - **Page objects.** `BasePage` and `test.extend()` make page objects the normal way to write tests, and `intelliwright init` scaffolds them.
 - **Jev features, all optional:** plain-English assertions, actions by description cached as readable locators, goal-driven runs that hand back Playwright code, and failure triage.
@@ -31,7 +31,7 @@ The full documentation is on GitHub Pages at [neeraj719714.github.io/intelliwrig
 - [Getting started](https://neeraj719714.github.io/intelliwright/docs/getting-started/installation): installation and your first test.
 - [Writing tests](https://neeraj719714.github.io/intelliwright/docs/writing-tests/basics): test basics, page objects, fixtures, assertions and signing in.
 - [Jev features](https://neeraj719714.github.io/intelliwright/docs/jev/overview): AI assertions and actions, goal-driven runs, questions, failure triage and providers.
-- [Running tests](https://neeraj719714.github.io/intelliwright/docs/running-tests/selecting-tests): selecting tests, starting your app, reports, CI and flaky tests.
+- [Running tests](https://neeraj719714.github.io/intelliwright/docs/running-tests/selecting-tests): selecting tests, UI mode, starting your app, reports, CI and flaky tests.
 - [Reference](https://neeraj719714.github.io/intelliwright/docs/reference/configuration): configuration, the command line and the API.
 
 ## Requirements
@@ -174,6 +174,7 @@ Tests pick a role with `use: { auth: "member" }` in the config, or `test.use({ a
 | `npx intelliwright test --list` | Lists the matching tests without running them. |
 | `npx intelliwright test --headed` | Shows the browser. |
 | `npx intelliwright test --base-url https://staging.example.com` | Runs against another environment. |
+| `npx intelliwright test --ui` | Opens UI mode: run tests from the browser and watch their results arrive. |
 | `npx intelliwright show-report` | Opens the last HTML report. |
 
 Failures save a trace, screenshots, an ARIA snapshot, and the console and network logs to `test-results/`. The HTML report opens by itself after a local run with failures, and never in CI.

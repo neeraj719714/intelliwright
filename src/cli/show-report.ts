@@ -56,7 +56,7 @@ export async function showReport(folder: string, options: ShowReportOptions): Pr
   return 0;
 }
 
-function listen(server: Server, port: number, host: string): Promise<number> {
+export function listen(server: Server, port: number, host: string): Promise<number> {
   return new Promise((resolve, reject) => {
     const onError = (error: Error): void => reject(error);
     server.once("error", onError);

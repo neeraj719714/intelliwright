@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, test } from "vitest";
 import type { TestCase } from "../../src/reporters/types.js";
-import { selectTests, writeLastRun, type SelectionOptions } from "../../src/runner/select.js";
+import { mergeLastRun, selectTests, writeLastRun, type SelectionOptions } from "../../src/runner/select.js";
 
 const root = path.resolve("/project");
 
@@ -79,9 +79,45 @@ describe("selectTests", () => {
     expect(result).toEqual({ tests: [], note: "No tests failed in the last run." });
   });
 
+  test("--last-failed can use a last run the caller read earlier", () => {
+    writeLastRun(outputDir, { status: "passed", failedTests: [] });
+    const context = { cwd: root, suites: {}, outputDir };
+    const earlier = { status: "failed" as const, failedTests: [tests[0]!.id] };
+    expect(selectTests(tests, { lastFailed: true }, { ...context, lastRun: earlier }).tests.map((test) => test.title)).toEqual(["signs in"]);
+    expect(selectTests(tests, { lastFailed: true }, { ...context, lastRun: null }).note).toMatch(/^There is no previous run in /);
+  });
+
   test(".only focuses within the selection", () => {
     const focused = [...tests.slice(0, 3), { ...tests[3]!, only: true }];
     const result = selectTests(focused, {}, { cwd: root, suites: {}, outputDir });
     expect(result.tests.map((test) => test.title)).toEqual(["searches @smoke"]);
+  });
+});
+
+describe("mergeLastRun", () => {
+  test("tests the run finished take their new result, and other failures stay", () => {
+    const previous = { status: "failed" as const, failedTests: ["a", "b"] };
+    expect(mergeLastRun(previous, { status: "failed", finished: ["a", "c"], failedTests: ["c"] })).toEqual({
+      status: "failed",
+      failedTests: ["b", "c"],
+    });
+  });
+
+  test("a passing run still counts as failed while earlier failures remain", () => {
+    expect(mergeLastRun({ status: "failed", failedTests: ["b"] }, { status: "passed", finished: ["a"], failedTests: [] })).toEqual({
+      status: "failed",
+      failedTests: ["b"],
+    });
+    expect(mergeLastRun({ status: "failed", failedTests: ["a"] }, { status: "passed", finished: ["a"], failedTests: [] })).toEqual({
+      status: "passed",
+      failedTests: [],
+    });
+  });
+
+  test("works without a previous run", () => {
+    expect(mergeLastRun(undefined, { status: "interrupted", finished: ["a"], failedTests: ["a"] })).toEqual({
+      status: "interrupted",
+      failedTests: ["a"],
+    });
   });
 });

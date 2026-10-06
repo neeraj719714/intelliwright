@@ -24,12 +24,14 @@ export class WorkerPool {
   #queue: Job[] = [];
   #nextWorkerIndex = 0;
   #fatal = false;
+  #stopped = false;
 
   constructor(options: PoolOptions) {
     this.#options = options;
   }
 
   async run(jobs: Job[]): Promise<void> {
+    if (this.#stopped) return;
     this.#queue = [...jobs];
     const slots = Math.min(this.#options.workers, jobs.length);
     await Promise.all(Array.from({ length: slots }, () => this.#runSlot()));
@@ -37,11 +39,12 @@ export class WorkerPool {
 
   /** Puts tests back at the front of the queue, such as the rest of a crashed worker's file. */
   requeue(job: Job): void {
-    this.#queue.unshift(job);
+    if (!this.#stopped) this.#queue.unshift(job);
   }
 
-  /** Kills every worker, for example on Ctrl+C. */
+  /** Kills every worker, for example on Ctrl+C. The pool runs nothing after that. */
   stop(): void {
+    this.#stopped = true;
     this.#queue = [];
     for (const child of this.#children) child.kill("SIGKILL");
   }

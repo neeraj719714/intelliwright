@@ -44,6 +44,7 @@ export default defineConfig({
 - `webServer` can be an array, to start several servers, such as an API and a front end.
 - A common setup is `reuseExistingServer: !process.env.CI`: locally it reuses your dev server, and in CI it always starts a fresh one.
 - Servers that the run started are stopped at the end, with everything they spawned. Servers it reused are left running.
+- In [UI mode](selecting-tests.md#ui-mode), servers start once, before the page opens, and stop when you press Ctrl+C.
 
 ## Another environment
 
@@ -79,4 +80,4 @@ export default async function globalSetup() {
 }
 ```
 
-Each function receives the resolved config. A function returned by `globalSetup` runs as teardown, before `globalTeardown`. Both run after `webServer` has started the app.
+Each function receives the resolved config. A function returned by `globalSetup` runs as teardown, before `globalTeardown`. Both run after `webServer` has started the app. In UI mode, they run once for the whole session, not once per run.

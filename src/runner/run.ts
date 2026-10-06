@@ -11,7 +11,7 @@ import type { AiRunSummary, Counts, Outcome, Reporter, RunSummary, TestCase } fr
 import { addUsage, emptyUsage } from "../ai/usage.js";
 import { checkRole, discoverSetupFiles } from "./auth.js";
 import { collectFile } from "./collect-file.js";
-import { LAST_RUN_FILE, selectTests, writeLastRun, type SelectionOptions } from "./select.js";
+import { LAST_RUN_FILE, mergeLastRun, readLastRun, selectTests, writeLastRun, type SelectionOptions } from "./select.js";
 import { ancestors, type TestNode } from "./tree.js";
 import { discoverTestFiles } from "./discover.js";
 import { importModule } from "./loader.js";
@@ -19,7 +19,7 @@ import { serializeError } from "./location.js";
 import { WorkerPool } from "./pool.js";
 import type { Job, WorkerMessage } from "./protocol.js";
 import type { AttemptResult, SerializedError } from "./types.js";
-import { startWebServers, type RunningServers } from "./web-server.js";
+import { startWebServers } from "./web-server.js";
 
 export interface RunOptions {
   cwd: string;
@@ -42,13 +42,9 @@ export async function runTests(options: RunOptions): Promise<number> {
     suites: config.suites,
     outputDir: config.outputDir,
   });
-  const roles = [...new Set(selected.flatMap((test) => (!test.skipped && test.auth ? [test.auth] : [])))].sort();
-  const missing = roles.filter((role) => !setups.some((setup) => setup.authSetup === role));
-  if (missing.length > 0) {
-    errors.push({
-      message: `No sign-in for ${missing.map((role) => `"${role}"`).join(", ")}. Add test.auth("${missing[0]}", async ({ page }) => { ... }) to a setup file such as e2e/auth.setup.ts.`,
-    });
-  }
+  const roles = signInRoles(selected);
+  const missing = missingSignIns(roles, setups);
+  if (missing) errors.push(missing);
 
   if (options.list) return printList(selected, roles, errors, note);
 
@@ -65,7 +61,31 @@ export async function runTests(options: RunOptions): Promise<number> {
     return 1;
   }
   const signIns = setups.filter((setup) => roles.includes(setup.authSetup!));
-  return execute(config, selected, signIns, errors, reporters, options);
+  clearOutputDir(config);
+  const summary = await runSelection({
+    config,
+    tests: selected,
+    signIns,
+    errors,
+    reporters,
+    workerEntry: options.workerEntry,
+    overrides: options.overrides,
+  });
+  return summary.status === "passed" ? 0 : summary.status === "interrupted" ? 130 : 1;
+}
+
+/** The roles the tests start signed in as, sorted. */
+export function signInRoles(tests: TestCase[]): string[] {
+  return [...new Set(tests.flatMap((test) => (!test.skipped && test.auth ? [test.auth] : [])))].sort();
+}
+
+/** The error for roles that no setup file signs in as, if there are any. */
+export function missingSignIns(roles: string[], setups: TestCase[]): SerializedError | undefined {
+  const missing = roles.filter((role) => !setups.some((setup) => setup.authSetup === role));
+  if (missing.length === 0) return undefined;
+  return {
+    message: `No sign-in for ${missing.map((role) => `"${role}"`).join(", ")}. Add test.auth("${missing[0]}", async ({ page }) => { ... }) to a setup file such as e2e/auth.setup.ts.`,
+  };
 }
 
 function printList(tests: TestCase[], roles: string[], errors: SerializedError[], note: string | undefined): number {
@@ -89,12 +109,15 @@ export interface CollectedTests {
   /** Sign-ins from `test.auth()` in setup files, one per role. */
   setups: TestCase[];
   errors: SerializedError[];
+  /** Files that threw while loading. */
+  failedFiles: string[];
 }
 
 export async function collectTests(config: ResolvedConfig): Promise<CollectedTests> {
   const tests: TestCase[] = [];
   const setups: TestCase[] = [];
   const errors: SerializedError[] = [];
+  const failedFiles: string[] = [];
   const load = async (file: string, into: TestCase[]): Promise<void> => {
     try {
       const collected = await collectFile(file, config.rootDir);
@@ -102,6 +125,7 @@ export async function collectTests(config: ResolvedConfig): Promise<CollectedTes
     } catch (error) {
       const serialized = serializeError(error, config.rootDir);
       errors.push({ ...serialized, message: `Couldn't load ${file}:\n${serialized.message}` });
+      failedFiles.push(file);
     }
   };
   for (const file of await discoverTestFiles(config)) await load(file, tests);
@@ -118,7 +142,7 @@ export async function collectTests(config: ResolvedConfig): Promise<CollectedTes
       byRole.set(setup.authSetup!, setup);
     }
   }
-  return { tests, setups: [...byRole.values()], errors };
+  return { tests, setups: [...byRole.values()], errors, failedFiles };
 }
 
 function toTestCase(node: TestNode, relFile: string, config: ResolvedConfig): TestCase {
@@ -179,16 +203,65 @@ function emit(reporters: Reporter[], call: (reporter: Reporter) => void): void {
   }
 }
 
-async function execute(
-  config: ResolvedConfig,
-  selected: TestCase[],
-  signIns: TestCase[],
-  errors: SerializedError[],
-  reporters: Reporter[],
-  options: RunOptions,
-): Promise<number> {
+export interface SelectionRun {
+  config: ResolvedConfig;
+  /** The tests to run, in order, with no results yet. */
+  tests: TestCase[];
+  /** Sign-ins that run before the tests, one per role. */
+  signIns: TestCase[];
+  /** Roles whose state an earlier run saved, so their tests start signed in without signing in again. */
+  signedIn?: ReadonlySet<string>;
+  /** Problems found before the run, such as a test file that failed to load. */
+  errors: SerializedError[];
+  reporters: Reporter[];
+  /** The CLI entry file, forked for each worker. */
+  workerEntry: string;
+  overrides: ConfigOverrides;
+  /**
+   * Starts webServer and globalSetup before the first test and stops them after
+   * the run. Defaults to true. UI mode starts them once and passes false.
+   */
+  startEnvironment?: boolean;
+  /** Stops the run when aborted. Without one, Ctrl+C stops it. */
+  signal?: AbortSignal;
+  /**
+   * `merge` keeps the earlier failures of tests this run didn't finish, for UI
+   * mode, whose runs each cover a few tests. Defaults to `replace`.
+   */
+  lastRun?: "replace" | "merge";
+}
+
+export interface Environment {
+  /** Runs the global teardown, then stops the web servers. */
+  stop(): Promise<void>;
+}
+
+/** Starts the webServer entries, then runs globalSetup. */
+export async function startEnvironment(config: ResolvedConfig, overrides: ConfigOverrides): Promise<Environment> {
+  const servers = await startWebServers(config.webServer, config.rootDir, overrides.baseURL);
+  let teardown: () => Promise<void>;
+  try {
+    teardown = await runGlobalSetup(config);
+  } catch (error) {
+    await servers.stop();
+    throw error;
+  }
+  return {
+    async stop() {
+      try {
+        await teardown();
+      } finally {
+        await servers.stop();
+      }
+    },
+  };
+}
+
+/** Runs the sign-ins, then the tests, on a pool of workers, and reports both. */
+export async function runSelection(run: SelectionRun): Promise<RunSummary> {
+  const { config, signIns, errors, reporters } = run;
+  const selected = run.tests;
   const startTime = Date.now();
-  clearOutputDir(config);
   const tests = [...signIns, ...selected];
   const runnable = selected.filter((test) => !test.skipped);
   const workers = Math.max(1, Math.min(config.workers, Math.max(jobsFor(runnable).length, jobsFor(signIns).length)));
@@ -213,11 +286,12 @@ async function execute(
       skip(test, reason(test.auth));
     }
   };
-  const available = new Set(signIns.map((setup) => setup.authSetup!));
+  const available = new Set([...signIns.map((setup) => setup.authSetup!), ...(run.signedIn ?? [])]);
   block(new Set(runnable.flatMap((test) => (test.auth && !available.has(test.auth) ? [test.auth] : []))), (role) => `No sign-in for "${role}".`);
 
   const byId = new Map([...signIns, ...runnable].map((test) => [test.id, test]));
   const running = new Map<number, string>();
+  let interrupted = false;
   const finish = (test: TestCase, result: AttemptResult, willRetry: boolean): void => {
     test.results.push(result);
     if (!willRetry) {
@@ -235,10 +309,10 @@ async function execute(
 
   const pool = new WorkerPool({
     workers,
-    entry: options.workerEntry,
+    entry: run.workerEntry,
     cwd: config.rootDir,
     configFile: config.configFile,
-    overrides: options.overrides,
+    overrides: run.overrides,
     onMessage(workerIndex: number, message: WorkerMessage) {
       const test = "testId" in message ? byId.get(message.testId) : undefined;
       switch (message.type) {
@@ -261,7 +335,8 @@ async function execute(
     onCrash(workerIndex: number, job: Job | undefined, reason: string) {
       const crashedId = running.get(workerIndex);
       running.delete(workerIndex);
-      if (!job) return;
+      // Stopping the run kills the workers; their tests are left unfinished, not failed.
+      if (!job || interrupted) return;
       const unfinished = job.testIds.filter((id) => byId.get(id)?.outcome === undefined);
       for (const id of unfinished.filter((testId) => testId === crashedId || crashedId === undefined)) {
         const test = byId.get(id)!;
@@ -281,22 +356,21 @@ async function execute(
     },
   });
 
-  let interrupted = false;
   const onInterrupt = (): void => {
     interrupted = true;
     pool.stop();
   };
-  let servers: RunningServers | undefined;
-  let teardown: (() => Promise<void>) | undefined;
+  let environment: Environment | undefined;
   try {
-    if (runnable.length > blocked.size) {
-      servers = await startWebServers(config.webServer, config.rootDir, options.overrides.baseURL);
-      teardown = await runGlobalSetup(config);
-      process.once("SIGINT", onInterrupt);
-      if (signIns.length > 0) {
+    if (runnable.length > blocked.size || signIns.length > 0) {
+      if (run.startEnvironment ?? true) environment = await startEnvironment(config, run.overrides);
+      if (!run.signal) process.once("SIGINT", onInterrupt);
+      else if (run.signal.aborted) onInterrupt();
+      else run.signal.addEventListener("abort", onInterrupt, { once: true });
+      if (signIns.length > 0 && !interrupted) {
         await pool.run(jobsFor(signIns));
         const failed = signIns.filter((setup) => setup.outcome !== "passed" && setup.outcome !== "flaky");
-        block(new Set(failed.map((setup) => setup.authSetup!)), (role) => `Signing in as "${role}" failed.`);
+        if (!interrupted) block(new Set(failed.map((setup) => setup.authSetup!)), (role) => `Signing in as "${role}" failed.`);
       }
       const ready = runnable.filter((test) => test.outcome === undefined && !blocked.has(test));
       if (!interrupted && ready.length > 0) await pool.run(jobsFor(ready));
@@ -305,12 +379,12 @@ async function execute(
     addError(serializeError(error, config.rootDir));
   } finally {
     process.off("SIGINT", onInterrupt);
+    run.signal?.removeEventListener("abort", onInterrupt);
     try {
-      await teardown?.();
+      await environment?.stop();
     } catch (error) {
       addError(serializeError(error, config.rootDir));
     }
-    await servers?.stop();
   }
 
   const counts = countOutcomes(tests);
@@ -330,10 +404,14 @@ async function execute(
     notes: [...new Set(tests.flatMap((test) => test.results.at(-1)?.triageSkipped ?? []))],
   };
   try {
-    writeLastRun(config.outputDir, {
-      status,
-      failedTests: selected.filter((test) => test.outcome === "failed" || blocked.has(test)).map((test) => test.id),
-    });
+    const failedTests = selected.filter((test) => test.outcome === "failed" || blocked.has(test)).map((test) => test.id);
+    const finished = selected.filter((test) => test.outcome !== undefined).map((test) => test.id);
+    writeLastRun(
+      config.outputDir,
+      run.lastRun === "merge"
+        ? mergeLastRun(readLastRun(config.outputDir), { status, finished, failedTests })
+        : { status, failedTests },
+    );
   } catch (error) {
     process.stderr.write(`Couldn't save the run state: ${(error as Error).message}\n`);
   }
@@ -344,7 +422,7 @@ async function execute(
       process.stderr.write(`Reporter error: ${String((error as Error)?.stack ?? error)}\n`);
     }
   }
-  return status === "passed" ? 0 : status === "interrupted" ? 130 : 1;
+  return summary;
 }
 
 async function runGlobalSetup(config: ResolvedConfig): Promise<() => Promise<void>> {

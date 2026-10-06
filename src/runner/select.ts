@@ -18,6 +18,8 @@ export interface SelectionContext {
   cwd: string;
   suites: Record<string, string>;
   outputDir: string;
+  /** The previous run for `--last-failed`, when the caller has read it already; `null` when there was none. */
+  lastRun?: LastRun | null;
 }
 
 export interface Selection {
@@ -68,7 +70,7 @@ export function selectTests(tests: TestCase[], options: SelectionOptions, contex
   }
 
   if (options.lastFailed) {
-    const lastRun = readLastRun(context.outputDir);
+    const lastRun = context.lastRun === undefined ? readLastRun(context.outputDir) : context.lastRun;
     if (!lastRun) {
       return { tests: [], note: `There is no previous run in ${path.join(context.outputDir, LAST_RUN_FILE)}.` };
     }
@@ -127,4 +129,17 @@ export function readLastRun(outputDir: string): LastRun | undefined {
 export function writeLastRun(outputDir: string, lastRun: LastRun): void {
   mkdirSync(outputDir, { recursive: true });
   writeFileSync(path.join(outputDir, LAST_RUN_FILE), `${JSON.stringify(lastRun, null, 2)}\n`);
+}
+
+/**
+ * Folds a run of a few tests into the previous run: tests it finished take their
+ * new result, and earlier failures of the tests it didn't finish stay.
+ */
+export function mergeLastRun(
+  previous: LastRun | undefined,
+  run: { status: LastRun["status"]; finished: string[]; failedTests: string[] },
+): LastRun {
+  const finished = new Set(run.finished);
+  const failedTests = [...new Set([...(previous?.failedTests ?? []).filter((id) => !finished.has(id)), ...run.failedTests])];
+  return { status: run.status === "passed" && failedTests.length > 0 ? "failed" : run.status, failedTests };
 }

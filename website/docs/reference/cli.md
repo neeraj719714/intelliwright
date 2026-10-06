@@ -7,7 +7,7 @@ Run commands with your package manager's runner, such as `npx intelliwright test
 
 | Command | What it does |
 | --- | --- |
-| [`intelliwright test`](#intelliwright-test) | Runs tests. |
+| [`intelliwright test`](#intelliwright-test) | Runs tests, or with `--ui`, opens UI mode. |
 | [`intelliwright init`](#intelliwright-init) | Sets up Intelliwright in a project. |
 | [`intelliwright install`](#intelliwright-install) | Downloads browsers. |
 | [`intelliwright show-report`](#intelliwright-show-report) | Serves the last HTML report. |
@@ -38,8 +38,12 @@ Filters are test files or folders. Add `:line` to run the test or `describe` tha
 | `--reporter <names>` | Comma-separated reporters: `terminal`, `html`, `json`, `junit`. |
 | `--base-url <url>` | Runs against this URL instead of the config's `baseURL`. |
 | `--update-cache` | Resolves every AI action again instead of using cached locators. |
+| `--ui` | Opens [UI mode](../running-tests/selecting-tests.md#ui-mode), a page where you run one test, a file or every listed test, and see steps, errors, screenshots and AI decisions as they happen. The filters decide which tests are listed, and saving a test file reloads the list. It can't be combined with `--list`, and it ignores `--reporter`. |
+| `--port <port>` | With `--ui`, the port to serve on. Defaults to `9324`. When it's taken, a free port is used. |
+| `--host <host>` | With `--ui`, the host to serve on. Defaults to `localhost`. |
+| `--no-open` | With `--ui`, doesn't open the browser. |
 
-Exit codes: `0` when every test passed, was skipped, or was flaky; `1` when a test failed, a file failed to load, no tests matched, or the config is invalid; `130` when interrupted.
+Exit codes: `0` when every test passed, was skipped, or was flaky; `1` when a test failed, a file failed to load, no tests matched, or the config is invalid; `130` when interrupted. UI mode runs until you press Ctrl+C, and then exits with `0`.
 
 See [Running and selecting tests](../running-tests/selecting-tests.md).
 

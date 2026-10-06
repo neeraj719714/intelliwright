@@ -1,6 +1,6 @@
 ---
 title: Running and selecting tests
-description: Run the whole suite or pick tests by file, line, tag, title, named suite or last run's failures, and control workers, retries and the browser.
+description: Run the whole suite or pick tests by file, line, tag, title, named suite or last run's failures, run them from the browser in UI mode, and control workers, retries and the browser.
 ---
 
 ```bash
@@ -87,6 +87,25 @@ runs only the tests that failed in the previous run, read from `test-results/.la
 
 When any selected test is marked `test.only` or is inside `test.describe.only`, only the focused tests run.
 
+## UI mode
+
+```bash
+npx intelliwright test --ui
+npx intelliwright test --ui --tag @smoke
+```
+
+opens a page in your browser that lists the selected tests and runs them when you ask: one test with the ▶ next to it, a file with the ▶ next to its name, or every test the page's filters show with **Run all**. Steps, errors, screenshots and AI decisions appear while the tests run, laid out like the [HTML report](reports.md#html-report). **Stop** ends a run, and a test it cut short goes back to the result it had before.
+
+- The filters on the command line decide which tests are listed. With `--last-failed`, the list stays the tests that had failed when UI mode started.
+- Saving a file in `testDir` reloads the list, and the next run uses the new code. A file that stops loading keeps its tests, with its error shown above them, until it loads again.
+- `webServer` and `globalSetup` start once and keep running until you press Ctrl+C. One run happens at a time.
+- A [sign-in](../writing-tests/signing-in.md) runs on the first run that needs its role, and later runs reuse it.
+- Each run records the tests it finished in `test-results/.last-run.json` and keeps the earlier failures of the others, so `--last-failed` afterwards reruns every test that's still failing.
+- `--headed`, `--workers`, `--retries`, `--timeout`, `--base-url` and `--update-cache` apply to every run.
+- The page is served on `http://localhost:9324`. `--port` and `--host` change that, and `--no-open` keeps the browser from opening. Requests that name another host are refused, and so are requests from other sites to run or stop tests.
+
+`--ui` can't be combined with `--list`, and it ignores `--reporter`.
+
 ## How tests run
 
 | Flag | Config | Default | What it does |
@@ -136,3 +155,5 @@ export default defineConfig({
 | 0 | Every test passed, or was skipped or flaky. Also when `--last-failed` finds nothing to rerun. |
 | 1 | A test failed, a file failed to load, no tests were found or matched, or the config is invalid. |
 | 130 | The run was interrupted with Ctrl+C. |
+
+UI mode exits with 0 when you press Ctrl+C.

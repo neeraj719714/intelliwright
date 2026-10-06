@@ -20,7 +20,7 @@ test("a user can save a note", async ({ page, newNotePage }) => {
 
 ## What you get
 
-- **A test runner and command line.** `intelliwright test` runs test files in parallel worker processes, can retry failing tests, and selects tests by file, line, tag, title or named suite. See [Running and selecting tests](running-tests/selecting-tests.md).
+- **A test runner and command line.** `intelliwright test` runs test files in parallel worker processes, can retry failing tests, and selects tests by file, line, tag, title or named suite. With `--ui`, you run tests from the browser and watch the results arrive. See [Running and selecting tests](running-tests/selecting-tests.md).
 - **An API you may already know.** `test`, `expect`, `test.describe`, hooks and fixtures work like Playwright Test. The `page` fixture is a Playwright `Page`, so every Playwright locator and action works.
 - **Page objects.** `BasePage` and `test.extend()` make page objects the normal way to write tests, and `intelliwright init` scaffolds them. See [Page objects](writing-tests/page-objects.md).
 - **Jev-powered features**, all optional:

@@ -172,6 +172,7 @@ npx intelliwright test e2e/notes.e2e.ts      # one file
 npx intelliwright test e2e/notes.e2e.ts:3    # the test that starts on line 3
 npx intelliwright test --headed              # watch the browser
 npx intelliwright test --suite smoke         # tests tagged @smoke
+npx intelliwright test --ui                  # run tests from the browser, and watch the results arrive
 ```
 
 See [Running and selecting tests](../running-tests/selecting-tests.md) for every way to pick tests.

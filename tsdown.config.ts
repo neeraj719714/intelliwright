@@ -13,13 +13,24 @@ const config: UserConfig[] = defineConfig([
     target: "node22",
     fixedExtension: false,
     dts: true,
-    exports: { exclude: ["cli", "report-app"], bin: true },
+    exports: { exclude: ["cli", "report-app", "ui-app"], bin: true },
     publint: true,
     attw: { profile: "esm-only", level: "error" },
   },
   {
     // The HTML report's Preact app, inlined into each report by the html reporter.
     entry: { "report-app": "src/reporters/html/app/main.tsx" },
+    format: "iife",
+    platform: "browser",
+    target: "es2022",
+    dts: false,
+    minify: true,
+    clean: false,
+    deps: { onlyBundle: ["preact"] },
+  },
+  {
+    // UI mode's page: the report app with run controls, served by `intelliwright test --ui`.
+    entry: { "ui-app": "src/ui/app/main.tsx" },
     format: "iife",
     platform: "browser",
     target: "es2022",

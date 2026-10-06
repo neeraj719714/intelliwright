@@ -1,4 +1,4 @@
-import { Command, InvalidArgumentError } from "commander";
+import { Command, InvalidArgumentError, Option } from "commander";
 import colors from "picocolors";
 import { REPORTERS } from "../config/load-config.js";
 import type { ReporterName } from "../config/types.js";
@@ -19,6 +19,10 @@ interface TestCommandOptions {
   reporter?: ReporterName[];
   baseUrl?: string;
   updateCache?: boolean;
+  ui?: boolean;
+  port?: number;
+  host?: string;
+  open: boolean;
 }
 
 export function createProgram(entry: string): Command {
@@ -45,30 +49,52 @@ export function createProgram(entry: string): Command {
     .option("--reporter <names>", `comma-separated reporters: ${REPORTERS.join(", ")}`, reporterList)
     .option("--base-url <url>", "run against this URL instead of the config's baseURL")
     .option("--update-cache", "resolve every AI action again instead of using cached locators")
-    .action(async (filters: string[], options: TestCommandOptions) => {
+    .addOption(new Option("--ui", "open UI mode: run tests from the browser and watch their results live").conflicts("list"))
+    .option("--port <port>", "with --ui, the port to serve on (default: 9324)", wholeNumber(0))
+    .option("--host <host>", "with --ui, the host to serve on (default: localhost)")
+    .option("--no-open", "with --ui, don't open the browser")
+    .action(async (filters: string[], options: TestCommandOptions, command: Command) => {
+      const selection = {
+        filters,
+        tag: options.tag,
+        grep: options.grep,
+        grepInvert: options.grepInvert,
+        suite: options.suite,
+        lastFailed: options.lastFailed,
+      };
+      const overrides = {
+        workers: options.workers,
+        retries: options.retries,
+        timeout: options.timeout,
+        headed: options.headed,
+        baseURL: options.baseUrl,
+        updateCache: options.updateCache,
+      };
+      if (options.ui) {
+        const { runUi } = await import("../ui/server.js");
+        process.exitCode = await runUi({
+          cwd: process.cwd(),
+          configFile: options.config,
+          workerEntry: entry,
+          selection,
+          overrides,
+          port: options.port ?? 9324,
+          host: options.host ?? "localhost",
+          open: options.open,
+        });
+        return;
+      }
+      const uiOnly = [options.port !== undefined && "--port", options.host !== undefined && "--host", !options.open && "--no-open"].filter(Boolean);
+      if (uiOnly.length > 0) command.error(`error: ${uiOnly.join(", ")} only work${uiOnly.length === 1 ? "s" : ""} with --ui.`);
+
       const { runTests } = await import("../runner/run.js");
       process.exitCode = await runTests({
         cwd: process.cwd(),
         configFile: options.config,
         workerEntry: entry,
         list: options.list,
-        selection: {
-          filters,
-          tag: options.tag,
-          grep: options.grep,
-          grepInvert: options.grepInvert,
-          suite: options.suite,
-          lastFailed: options.lastFailed,
-        },
-        overrides: {
-          workers: options.workers,
-          retries: options.retries,
-          timeout: options.timeout,
-          headed: options.headed,
-          baseURL: options.baseUrl,
-          reporters: options.reporter,
-          updateCache: options.updateCache,
-        },
+        selection,
+        overrides: { ...overrides, reporters: options.reporter },
       });
     });
 

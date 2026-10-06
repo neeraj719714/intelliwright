@@ -1,7 +1,15 @@
 import type { JSX } from "preact";
 import { useEffect, useMemo, useState } from "preact/hooks";
-import { formatCost, formatDuration } from "../../format.js";
+import { formatCost, formatDuration, plural } from "../../format.js";
 import type { ReportAttempt, ReportData, ReportTest } from "../data.js";
+
+/** What UI mode adds to the report: running tests from the page. */
+export interface RunControls {
+  run(testIds: string[]): void;
+  stop(): void;
+  /** False while the page has lost its connection to `intelliwright test --ui`. */
+  connected: boolean;
+}
 
 type StatusFilter = "all" | ReportTest["outcome"];
 
@@ -21,7 +29,23 @@ const STATUSES: Array<{ value: StatusFilter; label: string }> = [
   { value: "skipped", label: "Skipped" },
 ];
 
-const ICONS: Record<ReportTest["outcome"], string> = { passed: "✓", failed: "✘", flaky: "↻", skipped: "–", notRun: "·" };
+const ICONS: Record<ReportTest["outcome"], string> = {
+  passed: "✓",
+  failed: "✘",
+  flaky: "↻",
+  skipped: "–",
+  notRun: "·",
+  queued: "○",
+  running: "●",
+};
+
+const RUN_STATUS: Record<ReportData["status"], string> = {
+  passed: "passed",
+  failed: "failed",
+  interrupted: "failed",
+  running: "running",
+  ready: "notRun",
+};
 
 function readHash(): Filters {
   const params = new URLSearchParams(location.hash.slice(1));
@@ -45,7 +69,7 @@ function writeHash(filters: Filters): void {
   history.replaceState(null, "", hash ? `#${hash}` : location.pathname + location.search);
 }
 
-export function App({ data }: { data: ReportData }): JSX.Element {
+export function App({ data, controls }: { data: ReportData; controls?: RunControls }): JSX.Element {
   const [filters, setFilters] = useState<Filters>(readHash);
   const update = (change: Partial<Filters>): void => {
     const next = { ...filters, ...change };
@@ -73,11 +97,29 @@ export function App({ data }: { data: ReportData }): JSX.Element {
 
   const groups = new Map<string, ReportTest[]>();
   for (const test of visible) groups.set(test.file, [...(groups.get(test.file) ?? []), test]);
+  const running = data.status === "running";
+  const busy = running || !controls?.connected;
 
   return (
     <div>
-      <Header data={data} />
+      <Header data={data} controls={controls} />
       <div class="filters">
+        {controls && (
+          <div class="actions">
+            <button
+              type="button"
+              disabled={busy || visible.length === 0}
+              onClick={() => controls.run(visible.map((test) => test.id))}
+            >
+              {visible.length === data.tests.length ? "Run all" : `Run ${plural(visible.length, "test")}`}
+            </button>
+            {running && (
+              <button type="button" class="stop" onClick={() => controls.stop()}>
+                Stop
+              </button>
+            )}
+          </div>
+        )}
         <div class="segmented" role="group" aria-label="Status">
           {STATUSES.map(({ value, label }) => (
             <button type="button" aria-pressed={filters.status === value} onClick={() => update({ status: value })}>
@@ -117,28 +159,61 @@ export function App({ data }: { data: ReportData }): JSX.Element {
           {visible.length === 0 && <p class="empty">No tests match these filters.</p>}
           {[...groups.entries()].map(([file, tests]) => (
             <div>
-              <div class="file">{file}</div>
+              <div class="file">
+                {file}
+                {controls && (
+                  <button
+                    type="button"
+                    class="run"
+                    aria-label={`Run ${file}`}
+                    title={`Run the tests shown in ${file}`}
+                    disabled={busy}
+                    onClick={() => controls.run(tests.map((test) => test.id))}
+                  >
+                    ▶
+                  </button>
+                )}
+              </div>
               {tests.map((test) => (
-                <button
-                  type="button"
-                  class="test-row"
-                  data-testid="test-row"
-                  data-outcome={test.outcome}
-                  aria-pressed={test.id === filters.test}
-                  onClick={() => update({ test: test.id })}
-                >
-                  <span class={`icon status-${test.outcome}`} aria-label={test.outcome}>
-                    {ICONS[test.outcome]}
-                  </span>
-                  <span class="title">
-                    {test.titlePath.join(" › ")}
-                    {test.tags.map((tag) => (
-                      <span class="tag">{tag}</span>
-                    ))}
-                    {test.triage && <span class="tag">{test.triage.label}</span>}
-                  </span>
-                  <span class="duration">{formatDuration(test.duration)}</span>
-                </button>
+                <div class="row">
+                  <button
+                    type="button"
+                    class="test-row"
+                    data-testid="test-row"
+                    data-outcome={test.outcome}
+                    aria-pressed={test.id === filters.test}
+                    onClick={() => update({ test: test.id })}
+                  >
+                    <span class={`icon status-${test.outcome}`} aria-label={test.outcome}>
+                      {ICONS[test.outcome]}
+                    </span>
+                    <span class="title">
+                      {test.titlePath.join(" › ")}
+                      {test.tags.map((tag) => (
+                        <span class="tag">{tag}</span>
+                      ))}
+                      {test.triage && <span class="tag">{test.triage.label}</span>}
+                    </span>
+                    <span class="duration">
+                      {test.attempts.length > 0 && test.outcome !== "running" ? formatDuration(test.duration) : ""}
+                    </span>
+                  </button>
+                  {controls && (
+                    <button
+                      type="button"
+                      class="run"
+                      aria-label={`Run ${test.titlePath.join(" › ")}`}
+                      title="Run this test"
+                      disabled={busy}
+                      onClick={() => {
+                        update({ test: test.id });
+                        controls.run([test.id]);
+                      }}
+                    >
+                      ▶
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           ))}
@@ -151,7 +226,7 @@ export function App({ data }: { data: ReportData }): JSX.Element {
   );
 }
 
-function Header({ data }: { data: ReportData }): JSX.Element {
+function Header({ data, controls }: { data: ReportData; controls?: RunControls }): JSX.Element {
   const { counts } = data;
   const parts = [
     counts.passed && `${counts.passed} passed`,
@@ -162,14 +237,15 @@ function Header({ data }: { data: ReportData }): JSX.Element {
   return (
     <header>
       <h1>
-        Intelliwright report <span class={`status-${data.status === "passed" ? "passed" : "failed"}`}>· {data.status}</span>
+        {controls ? "Intelliwright UI" : "Intelliwright report"} <span class={`status-${RUN_STATUS[data.status]}`}>· {data.status}</span>
       </h1>
       <div class="meta">
         <span data-testid="totals">
-          {data.tests.length} tests: {parts.join(", ")}
+          {plural(data.tests.length, "test")}
+          {parts.length > 0 ? `: ${parts.join(", ")}` : ""}
         </span>
-        <span>{formatDuration(data.duration)}</span>
-        <span>{new Date(data.startTime).toLocaleString()}</span>
+        {data.startTime > 0 && data.status !== "running" && <span>{formatDuration(data.duration)}</span>}
+        {data.startTime > 0 && <span>{new Date(data.startTime).toLocaleString()}</span>}
         {data.ai && (
           <span>
             Jev via {data.ai.provider}
@@ -179,6 +255,7 @@ function Header({ data }: { data: ReportData }): JSX.Element {
           </span>
         )}
       </div>
+      {controls && !controls.connected && <p class="meta status-failed">Lost the connection to intelliwright test --ui. Trying again…</p>}
       {data.errors.map((error) => (
         <div class="error">
           <pre>{error.message}</pre>
@@ -193,7 +270,8 @@ function Header({ data }: { data: ReportData }): JSX.Element {
 
 function TestDetails({ test }: { test: ReportTest }): JSX.Element {
   const [index, setIndex] = useState(test.attempts.length - 1);
-  useEffect(() => setIndex(test.attempts.length - 1), [test.id]);
+  // In UI mode a retry adds an attempt while the test is shown, and the newest one is the one to watch.
+  useEffect(() => setIndex(test.attempts.length - 1), [test.id, test.attempts.length]);
   const attempt = test.attempts[Math.min(index, test.attempts.length - 1)];
   return (
     <div>
@@ -225,7 +303,7 @@ function TestDetails({ test }: { test: ReportTest }): JSX.Element {
           ))}
         </div>
       )}
-      {attempt && <Attempt attempt={attempt} />}
+      {attempt ? <Attempt attempt={attempt} /> : <p class="meta">{test.outcome === "queued" ? "Waiting to run." : "Not run yet."}</p>}
     </div>
   );
 }
@@ -239,10 +317,16 @@ function Attempt({ attempt }: { attempt: ReportAttempt }): JSX.Element {
   return (
     <div>
       <div class="meta">
-        <span class={`status-${attempt.status === "passed" ? "passed" : attempt.status === "skipped" ? "skipped" : "failed"}`}>
+        <span class={`status-${["passed", "skipped", "running"].includes(attempt.status) ? attempt.status : "failed"}`}>
           {attempt.status}
         </span>
-        <span>{formatDuration(attempt.duration)}</span>
+        {attempt.status !== "running" && <span>{formatDuration(attempt.duration)}</span>}
+        {attempt.annotations.map((annotation) => (
+          <span>
+            {annotation.type}
+            {annotation.description ? `: ${annotation.description}` : ""}
+          </span>
+        ))}
       </div>
       {attempt.errors.length > 0 && (
         <section class="block error" aria-label="Errors">

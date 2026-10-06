@@ -69,6 +69,8 @@ Total: 1 test in 1 file
 Signs in first as: member
 ```
 
+In [UI mode](../running-tests/selecting-tests.md#ui-mode), the sign-ins are listed above the tests that need them. A role signs in on the first run that needs it, and later runs reuse the saved state until the setup file changes. Running a sign-in from the page signs in again.
+
 ## When a sign-in fails
 
 The tests that need that role are skipped with the reason `Signing in as "member" failed.`, and the run fails. Tests that don't need it still run. `--last-failed` reruns the tests that were skipped this way, together with the sign-in.

@@ -46,7 +46,7 @@ export default defineConfig({
 | `testDir` | `string` | `"e2e"` | The folder with the tests. |
 | `testMatch` | `string \| string[]` | `"**/*.e2e.{ts,js,mts,mjs,cts,cjs}"` | Globs for test files, relative to `testDir`. |
 | `testIgnore` | `string \| string[]` | `[]` | Globs for files to leave out. They apply to setup files too. |
-| `outputDir` | `string` | `"test-results"` | Where failure artifacts and the last run's state go. Cleared at the start of each run. |
+| `outputDir` | `string` | `"test-results"` | Where failure artifacts and the last run's state go. Cleared at the start of each run, except in UI mode. |
 
 Files in `testDir` named `*.setup.{ts,mts,cts,js,mjs,cjs}` hold [sign-ins](../writing-tests/signing-in.md) and are never test files.
 

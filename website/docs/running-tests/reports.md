@@ -42,11 +42,13 @@ The report has:
 
 - totals, the run's duration, and Jev usage for the run;
 - filters by status, tag and file, and a search box;
-- for each test: its tags, triage label, each attempt, errors with their locations, a timeline of steps, and an **AI decisions** table with every question, answer and probability;
+- for each test: its tags, triage label, each attempt with its annotations, such as why it was skipped, errors with their locations, a timeline of steps, and an **AI decisions** table with every question, answer and probability;
 - for failed attempts: the screenshot, the ARIA snapshot, the console and network logs, and the trace;
 - attachments, such as the code from [`ai.run`](../jev/goals.md#turning-a-run-into-code) and anything a test attached with `testInfo.attach()`.
 
 The selected filters and test are kept in the page's URL, so a link opens the same view.
+
+[UI mode](selecting-tests.md#ui-mode) shows the same view while tests run, and fills it in as results arrive.
 
 | Option | Default | What it does |
 | --- | --- | --- |
@@ -89,4 +91,4 @@ or drop the file on [trace.playwright.dev](https://trace.playwright.dev).
 
 Artifacts are captured after `afterEach` hooks and fixture teardown, so they show the page as cleanup left it. For [`ai.run`](../jev/goals.md#when-a-run-stops) failures, the report also has the page state Jev last answered from.
 
-`test-results/` is cleared at the start of each run, except for `.last-run.json`, which [`--last-failed`](selecting-tests.md#rerunning-failures) reads. Set another folder with `outputDir`.
+`test-results/` is cleared at the start of each run, except for `.last-run.json`, which [`--last-failed`](selecting-tests.md#rerunning-failures) reads. UI mode doesn't clear it between runs. Set another folder with `outputDir`.
