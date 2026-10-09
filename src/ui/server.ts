@@ -16,19 +16,23 @@ export interface UiOptions extends UiSessionOptions {
 }
 
 const MAX_BODY_BYTES = 1_000_000;
+/** How long UI mode keeps running once its last page has disconnected, so that reloading the page doesn't stop it. */
+const LAST_PAGE_GRACE_MS = 5_000;
+/** How soon a page reconnects after losing the event stream; well within the grace period. */
+const RECONNECT_MS = 1_000;
 
-/** Runs UI mode until Ctrl+C and returns the exit code. */
+/** Runs UI mode until its last page closes or Ctrl+C, and returns the exit code. */
 export async function runUi(options: UiOptions): Promise<number> {
   process.setSourceMapsEnabled(true);
   const session = await UiSession.start(options);
   let ui: UiServer | undefined;
   try {
-    const { server } = (ui = createUiServer(session, options.host));
+    const { server, pagesClosed } = (ui = createUiServer(session, options.host));
     const port = await listen(server, options.port, options.host).catch(() => listen(server, 0, options.host));
     const url = `http://${options.host.includes(":") ? `[${options.host}]` : options.host}:${port}/`;
-    process.stdout.write(`UI mode is running at ${url}\nPress Ctrl+C to stop.\n`);
+    process.stdout.write(`UI mode is running at ${url}\nClose its page or press Ctrl+C to stop.\n`);
     if (options.open) openInBrowser(url);
-    await untilStopped();
+    if ((await untilStopped(pagesClosed)) === "page") process.stdout.write("The page was closed, so UI mode is stopping.\n");
   } finally {
     await session.close().finally(() => ui?.close());
   }
@@ -37,6 +41,8 @@ export async function runUi(options: UiOptions): Promise<number> {
 
 interface UiServer {
   server: Server;
+  /** Resolves once every page that connected has been gone for the grace period. */
+  pagesClosed: Promise<void>;
   close(): void;
 }
 
@@ -44,19 +50,26 @@ function createUiServer(session: UiSession, host: string): UiServer {
   const page = renderUiHtml();
   const outputDir = session.config.outputDir;
   const clients = new Set<ServerResponse>();
+  let closing = false;
+  let lastPageTimer: NodeJS.Timeout | undefined;
+  let allPagesGone!: () => void;
+  const pagesClosed = new Promise<void>((resolve) => (allPagesGone = resolve));
 
-  const stream = (request: IncomingMessage, response: ServerResponse): void => {
+  const stream = (response: ServerResponse): void => {
     response.writeHead(200, { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store" });
+    response.write(`retry: ${RECONNECT_MS}\n\n`);
     // Unnamed events with the type inside, since EventSource uses the name "error" for lost connections.
     const write = (event: UiEvent): void => {
       response.write(`data: ${JSON.stringify(event)}\n\n`);
     };
     write({ type: "tests", state: session.state });
     const unsubscribe = session.subscribe(write);
+    clearTimeout(lastPageTimer);
     clients.add(response);
-    request.on("close", () => {
+    response.on("close", () => {
       unsubscribe();
       clients.delete(response);
+      if (clients.size === 0 && !closing) lastPageTimer = setTimeout(allPagesGone, LAST_PAGE_GRACE_MS);
     });
   };
 
@@ -100,7 +113,7 @@ function createUiServer(session: UiSession, host: string): UiServer {
       return;
     }
     if (route === "GET /api/tests") return send(response, 200, session.state);
-    if (route === "GET /api/events") return stream(request, response);
+    if (route === "GET /api/events") return stream(response);
     if (route === "POST /api/run") {
       if (!request.headers["content-type"]?.startsWith("application/json")) {
         return send(response, 415, { error: "Send the test ids as JSON." });
@@ -131,7 +144,10 @@ function createUiServer(session: UiSession, host: string): UiServer {
 
   return {
     server,
+    pagesClosed,
     close() {
+      closing = true;
+      clearTimeout(lastPageTimer);
       for (const client of clients) client.end();
       server.closeAllConnections();
       server.close();
@@ -181,15 +197,17 @@ async function readJson(request: IncomingMessage): Promise<unknown> {
   return JSON.parse(Buffer.concat(chunks).toString("utf8"));
 }
 
-/** Resolves on the first Ctrl+C or SIGTERM. A second one exits right away. */
-function untilStopped(): Promise<void> {
+/** Resolves on the first Ctrl+C or SIGTERM, or once the pages have closed. A Ctrl+C after that exits right away. */
+function untilStopped(pagesClosed: Promise<void>): Promise<"signal" | "page"> {
   return new Promise((resolve) => {
-    const stop = (): void => {
-      process.off("SIGINT", stop);
-      process.off("SIGTERM", stop);
-      resolve();
+    const stop = (reason: "signal" | "page"): void => {
+      process.off("SIGINT", onSignal);
+      process.off("SIGTERM", onSignal);
+      resolve(reason);
     };
-    process.on("SIGINT", stop);
-    process.on("SIGTERM", stop);
+    const onSignal = (): void => stop("signal");
+    process.on("SIGINT", onSignal);
+    process.on("SIGTERM", onSignal);
+    void pagesClosed.then(() => stop("page"));
   });
 }

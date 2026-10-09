@@ -43,7 +43,7 @@ Filters are test files or folders. Add `:line` to run the test or `describe` tha
 | `--host <host>` | With `--ui`, the host to serve on. Defaults to `localhost`. |
 | `--no-open` | With `--ui`, doesn't open the browser. |
 
-Exit codes: `0` when every test passed, was skipped, or was flaky; `1` when a test failed, a file failed to load, no tests matched, or the config is invalid; `130` when interrupted. UI mode runs until you press Ctrl+C, and then exits with `0`.
+Exit codes: `0` when every test passed, was skipped, or was flaky; `1` when a test failed, a file failed to load, no tests matched, or the config is invalid; `130` when interrupted. UI mode runs until you close its page or press Ctrl+C, and then exits with `0`.
 
 See [Running and selecting tests](../running-tests/selecting-tests.md).
 

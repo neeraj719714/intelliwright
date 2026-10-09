@@ -98,7 +98,8 @@ opens a page in your browser that lists the selected tests and runs them when yo
 
 - The filters on the command line decide which tests are listed. With `--last-failed`, the list stays the tests that had failed when UI mode started.
 - Saving a file in `testDir` reloads the list, and the next run uses the new code. A file that stops loading keeps its tests, with its error shown above them, until it loads again.
-- `webServer` and `globalSetup` start once and keep running until you press Ctrl+C. One run happens at a time.
+- `webServer` and `globalSetup` start once and keep running until UI mode stops. One run happens at a time.
+- Closing the page stops UI mode, the same as pressing Ctrl+C. It waits 5 seconds after the last open page closes, so reloading the page doesn't stop it. Web servers it started stop with it, and servers it reused keep running.
 - A [sign-in](../writing-tests/signing-in.md) runs on the first run that needs its role, and later runs reuse it.
 - Each run records the tests it finished in `test-results/.last-run.json` and keeps the earlier failures of the others, so `--last-failed` afterwards reruns every test that's still failing.
 - `--headed`, `--workers`, `--retries`, `--timeout`, `--base-url` and `--update-cache` apply to every run.
@@ -156,4 +157,4 @@ export default defineConfig({
 | 1 | A test failed, a file failed to load, no tests were found or matched, or the config is invalid. |
 | 130 | The run was interrupted with Ctrl+C. |
 
-UI mode exits with 0 when you press Ctrl+C.
+UI mode exits with 0 when you close its page or press Ctrl+C.

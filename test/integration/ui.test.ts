@@ -39,6 +39,8 @@ interface Ui {
   child: ChildProcess;
   url: string;
   exited: Promise<number | null>;
+  /** Everything it printed so far. */
+  output(): string;
 }
 
 function startUi(cwd: string, env: Record<string, string> = {}): Promise<Ui> {
@@ -52,7 +54,7 @@ function startUi(cwd: string, env: Record<string, string> = {}): Promise<Ui> {
     child.stdout.on("data", (chunk: Buffer) => {
       output += chunk.toString();
       const match = /UI mode is running at (\S+)/.exec(output);
-      if (match) resolve({ child, url: match[1]!, exited });
+      if (match) resolve({ child, url: match[1]!, exited, output: () => output });
     });
     child.stderr.on("data", (chunk: Buffer) => (output += chunk.toString()));
     void exited.then(() => reject(new Error(`UI mode exited before it started:\n${output}`)));
@@ -77,7 +79,8 @@ function listen(url: string) {
       for await (const chunk of response.body!.pipeThrough(new TextDecoderStream())) {
         buffer += chunk;
         for (let end = buffer.indexOf("\n\n"); end !== -1; end = buffer.indexOf("\n\n")) {
-          seen.push(JSON.parse(buffer.slice(0, end).replace(/^data: /, "")) as UiEvent);
+          const block = buffer.slice(0, end);
+          if (block.startsWith("data: ")) seen.push(JSON.parse(block.slice("data: ".length)) as UiEvent);
           buffer = buffer.slice(end + 2);
         }
       }
@@ -215,10 +218,16 @@ describe("UI mode on the basic project", () => {
     }
   });
 
-  // On Windows, kill() can't send Ctrl+C: it ends the process at once.
-  test.skipIf(process.platform === "win32")("Ctrl+C stops the web server and exits with 0", async () => {
-    ui.child.kill("SIGINT");
+  test("a reload keeps UI mode running, and closing its last page stops it and the web server it started", async () => {
+    events.close();
+    const reloaded = listen(ui.url);
+    await reloaded.next((event) => event.type === "tests");
+    await new Promise((resolve) => setTimeout(resolve, 6_000));
+    expect(ui.child.exitCode).toBeNull();
+
+    reloaded.close();
     expect(await ui.exited).toBe(0);
+    expect(ui.output()).toContain("The page was closed, so UI mode is stopping.");
     expect(await isUp(siteURL)).toBe(false);
   });
 });
@@ -266,5 +275,12 @@ describe("UI mode reloads the list when test files change", () => {
     const broken = await events.next(reloaded((shown) => shown.errors.length > 0));
     expect(broken.state!.errors.map((error) => error.message)).toEqual([expect.stringContaining("Couldn't load")]);
     expect(listed(broken)).toEqual(["adds: failed", "subtracts: notRun"]);
+  });
+
+  // On Windows, kill() can't send Ctrl+C: it ends the process at once.
+  test.skipIf(process.platform === "win32")("Ctrl+C stops UI mode while its page is open, and exits with 0", async () => {
+    ui.child.kill("SIGINT");
+    expect(await ui.exited).toBe(0);
+    expect(ui.output()).not.toContain("The page was closed");
   });
 });
